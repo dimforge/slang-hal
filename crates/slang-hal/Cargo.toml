@@ -1,0 +1,54 @@
+[package]
+name = "slang-hal" # TODO: keep this name or rename to something like "slang-hal"?
+authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
+description = "Utilities and abstractions for composable WGSL shaders."
+homepage = "https://wgmath.rs"
+repository = "https://github.com/dimforge/wgmath"
+readme = "README.md"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+
+[features]
+derive = ["slang-hal-derive"]
+cuda = ["cudarc"]
+cublas = [ "cudarc?/cublas"]
+
+[dependencies]
+nalgebra = { workspace = true }
+wgpu = { workspace = true, features = ["wgsl"] }
+encase = { workspace = true }
+bytemuck = { workspace = true }
+anyhow = { workspace = true }
+async-channel = { workspace = true }
+thiserror = { workspace = true }
+smallvec = "1"
+futures = { workspace = true }
+async-trait = "0.1"
+include_dir = "0.7"
+
+minislang = { path = "../minislang" }
+slang-hal-derive = { version = "0.1", path = "../slang-hal-derive", optional = true }
+dashmap = "5"
+regex = "1"
+
+# For hot-reloading
+notify = { version = "7" } # , optional = true }
+
+
+# For test_shader_compilation
+paste = "1"
+
+# CUDA runtime
+cudarc = { version = "0.16", default-features = false, features = ["std", "driver", "dynamic-loading", "cuda-version-from-build-system"], optional = true }
+log = "0.4.27"
+
+[dev-dependencies]
+nalgebra = { version = "0.34", features = ["rand"] }
+futures-test = "0.3"
+serial_test = "3"
+approx = "0.5"
+async-std = { version = "1", features = ["attributes"] }
+
+[build-dependencies]
+dircpy = "0.3"

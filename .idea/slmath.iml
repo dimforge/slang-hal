@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="EMPTY_MODULE" version="4">
+  <component name="NewModuleRootManager">
+    <content url="file://$MODULE_DIR$/../slang-hal">
+      <sourceFolder url="file://$MODULE_DIR$/../slang-hal/crates/gla/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/../slang-hal/crates/gla/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/../slang-hal/crates/minislang/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/../slang-hal/crates/nexus/crates/nexus3d/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/../slang-hal/crates/slang-hal-derive/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/../slang-hal/crates/slang-hal/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/../slang-hal/crates/slang-hal/src" isTestSource="false" />
+      <excludeFolder url="file://$MODULE_DIR$/../slang-hal/target" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+  </component>
+</module>

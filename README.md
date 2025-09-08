@@ -1,2 +1,1 @@
-# slsc
-Slang for Scientific Computing
+# slang-hal - A Render Hardware Abstraction for Slang

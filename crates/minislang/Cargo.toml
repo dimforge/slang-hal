@@ -1,0 +1,15 @@
+[package]
+name = "minislang"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+shader-slang = { workspace = true }
+shader-slang-sys = { workspace = true }
+walkdir = "2"
+include_dir = "0.7"
+log = "0.4"
+tempfile = "3"
+
+[lints]
+workspace = true
