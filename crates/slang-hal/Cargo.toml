@@ -49,6 +49,7 @@ futures-test = "0.3"
 serial_test = "3"
 approx = "0.5"
 async-std = { version = "1", features = ["attributes"] }
+slang-hal = { path = ".", features = ["derive"] }
 
 [build-dependencies]
 dircpy = "0.3"

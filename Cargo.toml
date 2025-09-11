@@ -31,5 +31,5 @@ rust.unexpected_cfgs = { level = "warn", check-cfg = [
 opt-level = 'z'
 
 [patch.crates-io]
-encase = { path = "../encase" }
-shader-slang = { path = "../slang-rs" }
+#encase = { path = "../encase" }
+#shader-slang = { path = "../slang-rs" }

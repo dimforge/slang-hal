@@ -97,7 +97,9 @@ impl SlangCompiler {
 
             let entry_points: Vec<_> = module
                 .entry_points()
-                .filter(|e| entry_point.is_none() || e.function_reflection().name() == entry_point)
+                .filter(|e| {
+                    entry_point.is_none() || Some(e.function_reflection().name()) == entry_point
+                })
                 .map(|e| e.downcast().clone())
                 .collect();
             let program = session
