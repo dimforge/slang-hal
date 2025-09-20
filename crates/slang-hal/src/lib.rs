@@ -18,7 +18,6 @@ pub mod re_exports {
     pub use encase;
     pub use include_dir;
     pub use minislang;
-    pub use notify;
     pub use paste;
     pub use wgpu::{self, Device};
 }
