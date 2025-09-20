@@ -3,7 +3,6 @@ use crate::backend::{
     Backend, DeviceValue, Dispatch, DispatchGrid, EncaseType, Encoder, ShaderBinding,
 };
 use crate::shader::ShaderArgsError;
-use crate::webgpu::WebGpu;
 use bytemuck::Pod;
 use cudarc::driver::safe::{CudaFunction, CudaSlice, CudaStream, DeviceRepr, LaunchArgs};
 use cudarc::driver::{CudaContext, CudaModule, CudaView, CudaViewMut, LaunchConfig, PushKernelArg};

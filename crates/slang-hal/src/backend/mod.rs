@@ -58,7 +58,7 @@ pub trait Backend: 'static + Sized + Send + Sync {
         Self: 'a;
 
     #[cfg(feature = "cuda")]
-    fn as_cuda(&self) -> Option<&crate::cuda::Cuda> {
+    fn as_cuda(&self) -> Option<&crate::backend::Cuda> {
         None
     }
     fn as_webgpu(&self) -> Option<&WebGpu> {

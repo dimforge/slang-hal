@@ -1,1 +1,1 @@
-# slang-hal - A Render Hardware Abstraction for Slang
+# slang-hal - A hardware abstraction for Slang
