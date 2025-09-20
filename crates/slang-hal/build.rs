@@ -33,6 +33,6 @@ fn main() {
     let out_dir = Path::new(&out_dir);
     let cpy_target = out_dir.join("../../..");
 
-    dircpy::copy_dir(&lib_dir, &cpy_target).unwrap_or_else(|_| panic!("could not copy dynamic libraries from `{lib_dir:?}` to target directory `{cpy_target:?}`"));
-    dircpy::copy_dir(&bin_dir, &cpy_target).unwrap_or_else(|_| panic!("could not copy dynamic libraries from `{bin_dir:?}` to target directory `{cpy_target:?}`"));
+    dircpy::copy_dir(&lib_dir, &cpy_target).unwrap_or_else(|e| panic!("could not copy dynamic libraries from `{lib_dir:?}` to target directory `{cpy_target:?}`: {e}"));
+    dircpy::copy_dir(&bin_dir, &cpy_target).unwrap_or_else(|e| panic!("could not copy dynamic libraries from `{bin_dir:?}` to target directory `{cpy_target:?}`: {e}"));
 }
