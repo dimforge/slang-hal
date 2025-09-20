@@ -1,10 +1,8 @@
 [package]
-name = "slang-hal" # TODO: keep this name or rename to something like "slang-hal"?
+name = "slang-hal"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
-description = "Utilities and abstractions for composable WGSL shaders."
-homepage = "https://wgmath.rs"
-repository = "https://github.com/dimforge/wgmath"
-readme = "README.md"
+description = "Abstractions for running Slang shaders with Rust."
+repository = "https://github.com/dimforge/slang-hal"
 version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
