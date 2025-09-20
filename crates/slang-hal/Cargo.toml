@@ -25,13 +25,10 @@ futures = { workspace = true }
 async-trait = "0.1"
 include_dir = "0.7"
 
-minislang = { path = "../minislang" }
+minislang = { version = "0.1", path = "../minislang" }
 slang-hal-derive = { version = "0.1", path = "../slang-hal-derive", optional = true }
 dashmap = "5"
 regex = "1"
-
-# For hot-reloading
-notify = { version = "7" } # , optional = true }
 
 
 # For test_shader_compilation
