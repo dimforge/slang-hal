@@ -1,9 +1,5 @@
 [workspace]
-members = [
-    "crates/minislang",
-    "crates/slang-hal",
-    "crates/slang-hal-derive",
-]
+members = ["crates/minislang", "crates/slang-hal", "crates/slang-hal-derive"]
 resolver = "2"
 
 [workspace.dependencies]
@@ -24,7 +20,7 @@ encase = "0.12"
 
 [workspace.lints]
 rust.unexpected_cfgs = { level = "warn", check-cfg = [
-    'cfg(feature, values("dim2", "dim3"))'
+    'cfg(feature, values("dim2", "dim3"))',
 ] }
 
 [profile.release]
@@ -33,3 +29,6 @@ opt-level = 'z'
 [patch.crates-io]
 #encase = { path = "../encase" }
 #shader-slang = { path = "../slang-rs" }
+shader-slang = { git = "https://github.com/Vrixyz/slang-rs.git", branch = "static-build", default-features = false, features = [
+    "static",
+] }
