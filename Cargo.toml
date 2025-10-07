@@ -1,9 +1,5 @@
 [workspace]
-members = [
-    "crates/minislang",
-    "crates/slang-hal",
-    "crates/slang-hal-derive",
-]
+members = ["crates/minislang", "crates/slang-hal", "crates/slang-hal-derive"]
 resolver = "2"
 
 [workspace.dependencies]
@@ -13,9 +9,12 @@ anyhow = "1"
 async-channel = "2"
 thiserror = "2"
 futures = "0.3"
-
-shader-slang = "0.1"
-shader-slang-sys = "0.1"
+shader-slang = { git = "https://github.com/Vrixyz/slang-rs.git", branch = "static-build", default-features = false, features = [
+    "static",
+] }
+shader-slang-sys = { git = "https://github.com/Vrixyz/slang-rs.git", branch = "static-build", default-features = false, features = [
+    "static",
+] }
 
 # TODO: make the wgpu dependency optional too (all backends should be optional but with
 #       wgpu enabled by default).
@@ -24,7 +23,7 @@ encase = "0.12"
 
 [workspace.lints]
 rust.unexpected_cfgs = { level = "warn", check-cfg = [
-    'cfg(feature, values("dim2", "dim3"))'
+    'cfg(feature, values("dim2", "dim3"))',
 ] }
 
 [profile.release]
@@ -33,3 +32,6 @@ opt-level = 'z'
 [patch.crates-io]
 #encase = { path = "../encase" }
 #shader-slang = { path = "../slang-rs" }
+shader-slang = { git = "https://github.com/Vrixyz/slang-rs.git", branch = "static-build", default-features = false, features = [
+    "static",
+] }

@@ -53,7 +53,7 @@ impl<B: Backend> GpuFunction<B> {
             buffers.push((
                 param_var
                     .name()
-                    // .expect("unnamed parameters not supported yet")
+                    .expect("unnamed parameters not supported yet")
                     .to_string(),
                 binding,
             ));
