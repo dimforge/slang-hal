@@ -1,8 +1,11 @@
 use std::env;
 use std::path::Path;
 
-// Automatically copy the dynamic libraries from the slang dir to the target dir.
+// When not linking statically: automatically copy the dynamic libraries from the slang dir to the target dir.
 fn main() {
+    if cfg!(feature = "slang-static") {
+        return;
+    }
     println!("cargo:rerun-if-env-changed=SLANG_LIB_DIR");
 
     let lib_dir = if let Ok(dir) = env::var("SLANG_LIB_DIR") {

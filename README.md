@@ -12,6 +12,7 @@ In order to compile and run any slang project, be sure to define the `SLANG_DIR`
 2. Unzip the downloaded directory, and use its path as value to the `SLANG_DIR` environment variable: `SLANG_DIR=/path/to/slang`.
    Note that the variable must point to the root of the slang installation (i.e. the directory that contains `bin` and `lib`).
    We recommend adding that as a system-wide environment variables so that it also becomes available to your IDE.
+3. Linking statically requires you to compile with `--no-default features --features slang-static`, and an additional environment variable, check out https://github.com/FloatyMonkey/slang-rs/pull/25 for more info.
 
 ### Supported backends
 
