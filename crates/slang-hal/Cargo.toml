@@ -8,9 +8,12 @@ edition = "2024"
 license = "MIT OR Apache-2.0"
 
 [features]
+default = ["slang-dynamic"]
 derive = ["slang-hal-derive"]
 cuda = ["cudarc"]
-cublas = [ "cudarc?/cublas"]
+cublas = ["cudarc?/cublas"]
+slang-static = ["minislang/slang-static"]
+slang-dynamic = ["minislang/slang-dynamic"]
 
 [dependencies]
 nalgebra = { workspace = true }
@@ -25,17 +28,21 @@ futures = { workspace = true }
 async-trait = "0.1"
 include_dir = "0.7"
 
-minislang = { version = "0.1", path = "../minislang" }
+minislang = { version = "0.1", path = "../minislang", default-features = false }
 slang-hal-derive = { version = "0.1", path = "../slang-hal-derive", optional = true }
 dashmap = "5"
 regex = "1"
-
 
 # For test_shader_compilation
 paste = "1"
 
 # CUDA runtime
-cudarc = { version = "0.16", default-features = false, features = ["std", "driver", "dynamic-loading", "cuda-version-from-build-system"], optional = true }
+cudarc = { version = "0.16", default-features = false, features = [
+    "std",
+    "driver",
+    "dynamic-loading",
+    "cuda-version-from-build-system",
+], optional = true }
 log = "0.4.27"
 
 [dev-dependencies]
@@ -44,7 +51,7 @@ futures-test = "0.3"
 serial_test = "3"
 approx = "0.5"
 async-std = { version = "1", features = ["attributes"] }
-slang-hal = { path = ".", features = ["derive"] }
+slang-hal = { path = ".", features = ["derive"], default-features = false }
 
 [build-dependencies]
 dircpy = "0.3"

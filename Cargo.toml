@@ -9,12 +9,8 @@ anyhow = "1"
 async-channel = "2"
 thiserror = "2"
 futures = "0.3"
-shader-slang = { git = "https://github.com/Vrixyz/slang-rs.git", branch = "static-build", default-features = false, features = [
-    "static",
-] }
-shader-slang-sys = { git = "https://github.com/Vrixyz/slang-rs.git", branch = "static-build", default-features = false, features = [
-    "static",
-] }
+shader-slang = { git = "https://github.com/Vrixyz/slang-rs.git", branch = "static-build", default-features = false }
+shader-slang-sys = { git = "https://github.com/Vrixyz/slang-rs.git", branch = "static-build", default-features = false }
 
 # TODO: make the wgpu dependency optional too (all backends should be optional but with
 #       wgpu enabled by default).
@@ -32,6 +28,4 @@ opt-level = 'z'
 [patch.crates-io]
 #encase = { path = "../encase" }
 #shader-slang = { path = "../slang-rs" }
-shader-slang = { git = "https://github.com/Vrixyz/slang-rs.git", branch = "static-build", default-features = false, features = [
-    "static",
-] }
+shader-slang = { git = "https://github.com/Vrixyz/slang-rs.git", branch = "static-build" }

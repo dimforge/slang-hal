@@ -7,6 +7,11 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 
+[features]
+default = ["slang-static"]
+slang-static = ["shader-slang/static"]
+slang-dynamic = ["shader-slang/dynamic"]
+
 [dependencies]
 shader-slang = { workspace = true }
 shader-slang-sys = { workspace = true }
