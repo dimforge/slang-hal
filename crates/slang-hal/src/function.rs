@@ -21,8 +21,10 @@ impl<B: Backend> GpuFunction<B> {
         compiler: &SlangCompiler,
         path: &str,
         entry_point_name: &str,
+        specializations: &[String],
     ) -> Result<Self, B::Error> {
-        let program = compiler.compile(path, B::TARGET, Some(entry_point_name), &[]);
+        let specializations: Vec<_> = specializations.iter().map(|s| s.replace("::", "/")).collect();
+        let program = compiler.compile(path, B::TARGET, Some(entry_point_name), &specializations, &[]);
         let module_bytes = program.target_code(0).unwrap();
         let module = backend.load_module_bytes(module_bytes.as_slice())?;
         let function = backend.load_function(&module, entry_point_name)?;

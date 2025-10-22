@@ -57,6 +57,7 @@ impl SlangCompiler {
         module: &str,
         target: CompileTarget,
         entry_point: Option<&str>,
+        specializations: &[String],
         macro_defines: &[(String, String)],
     ) -> SlangProgram {
         let (linked_program, session) = {
@@ -95,13 +96,19 @@ impl SlangCompiler {
 
             let module = session.load_module(module).unwrap();
 
-            let entry_points: Vec<_> = module
+            let mut entry_points: Vec<_> = module
                 .entry_points()
                 .filter(|e| {
                     entry_point.is_none() || Some(e.function_reflection().name()) == entry_point
                 })
                 .map(|e| e.downcast().clone())
                 .collect();
+
+            for specialization in specializations {
+                let spec_module = session.load_module(&specialization).unwrap();
+                entry_points.push(spec_module.downcast().clone());
+            }
+
             let program = session
                 .create_composite_component_type(&entry_points)
                 .unwrap();
@@ -120,9 +127,10 @@ impl SlangCompiler {
         target: CompileTarget,
         module: &str,
         target_file: impl AsRef<Path>,
+        specializations: &[String],
         macro_defines: &[(String, String)],
     ) {
-        let program = self.compile(module, target, None, macro_defines);
+        let program = self.compile(module, target, None, specializations, macro_defines);
         let code = program
             .program
             .target_code(0)
@@ -165,7 +173,7 @@ impl SlangCompiler {
                     target_path.display()
                 );
                 std::fs::create_dir_all(target_parent_dir).unwrap();
-                self.compile_to(target, path.to_str().unwrap(), target_path, macro_defines);
+                self.compile_to(target, path.to_str().unwrap(), target_path, &[], macro_defines);
             }
         }
     }
