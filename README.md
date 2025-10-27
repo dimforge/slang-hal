@@ -8,7 +8,7 @@ The **slang-hal** library provides abstractions for running slang shaders on any
 ### Using Slang
 
 In order to compile and run any slang project, be sure to define the `SLANG_DIR` environment variable:
-1. Download the Slang compiler libraries for your platform: https://github.com/shader-slang/slang/releases/tag/v2025.16
+1. Download the Slang compiler libraries for your platform: <https://github.com/shader-slang/slang/releases/tag/v2025.16>
 2. Unzip the downloaded directory, and use its path as value to the `SLANG_DIR` environment variable: `SLANG_DIR=/path/to/slang`.
    Note that the variable must point to the root of the slang installation (i.e. the directory that contains `bin` and `lib`).
    We recommend adding that as a system-wide environment variables so that it also becomes available to your IDE.
@@ -18,9 +18,9 @@ In order to compile and run any slang project, be sure to define the `SLANG_DIR`
 **slang-hal** exposes a unified API for interacting with the GPU in a backend-agnostic way.
 
 | Backend | Shader compilation | Compute pipelines | Render pipelines | Buffer read/write   | Non-Pod types | Indirect dispatch | GPU timestamps | Link-time specialization | 
-|---------|--------------------|-------------------|------------------|---------------------|---------------|-------------------|----------------|-------------------------|
-| WebGpu  | ✅                 | ✅                 | ❌                 | ✅                   | ✅             | ✅                |  ❌              | ❌ |
-| Cuda    | ✅                 | ✅                 | ❌                 | ✅                   | ❌             | ❌                |  ❌              | ❌ |
+|---------|--------------------|-------------------|------------------|---------------------|---------------|-------------------|----------------|------------------------|
+| WebGpu  | ✅                 | ✅                 | ❌                 | ✅                   | ✅             | ✅                |  ❌              | ✅ |
+| Cuda    | ✅                 | ✅                 | ❌                 | ✅                   | ❌             | ❌                |  ❌              | ✅ |
 | Vulkan  | ❌                 | ❌                 | ❌                 | ❌                   | ❌             | ❌                |  ❌              | ❌ |
 | Metal   | ❌                 | ❌                 | ❌                 | ❌                   | ❌             | ❌                |  ❌              | ❌ |
 | DirectX | ❌                 | ❌                 | ❌                 | ❌                   | ❌              | ❌                | ❌               | ❌ |
