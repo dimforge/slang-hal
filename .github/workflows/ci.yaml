@@ -82,7 +82,7 @@ jobs:
           components: clippy
 
       - name: Install dependencies
-        run: sudo apt-get update; sudo apt-get install --no-install-recommends libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+        run: sudo apt-get update; sudo apt-get install --no-install-recommends build-essential curl wget file libssl-dev
 
       - name: Retrieve Cache for Slang
         uses: actions/cache/restore@v4
@@ -114,7 +114,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install dependencies
-        run: sudo apt-get update; sudo apt-get install --no-install-recommends libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+        run: sudo apt-get update; sudo apt-get install --no-install-recommends build-essential curl wget file libssl-dev
 
       - name: Retrieve Cache for Slang
         uses: actions/cache/restore@v4
@@ -145,7 +145,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install dependencies
-        run: sudo apt-get update; sudo apt-get install --no-install-recommends libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+        run: sudo apt-get update; sudo apt-get install --no-install-recommends build-essential curl wget file libssl-dev
 
       - name: Retrieve Cache for Slang
         uses: actions/cache/restore@v4
