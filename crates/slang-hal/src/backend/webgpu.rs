@@ -13,7 +13,12 @@ use std::borrow::Cow;
 use std::ops::RangeBounds;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::wgt::CommandEncoderDescriptor;
-use wgpu::{Adapter, Buffer, BufferAddress, BufferDescriptor, BufferSlice, BufferUsages, BufferView, CommandEncoder, ComputePass, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor, Device, ExperimentalFeatures, Instance, PipelineCompilationOptions, PollError, Queue, ShaderModule, ShaderRuntimeChecks};
+use wgpu::{
+    Adapter, Buffer, BufferAddress, BufferDescriptor, BufferSlice, BufferUsages, BufferView,
+    CommandEncoder, ComputePass, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor,
+    Device, ExperimentalFeatures, Instance, PipelineCompilationOptions, PollError, Queue,
+    ShaderModule, ShaderRuntimeChecks,
+};
 
 /// Helper struct to initialize a device and its queue.
 pub struct WebGpu {
@@ -49,7 +54,7 @@ impl WebGpu {
                 required_limits: limits,
                 memory_hints: Default::default(),
                 trace: wgpu::Trace::Off,
-                experimental_features: ExperimentalFeatures::default()
+                experimental_features: ExperimentalFeatures::default(),
             })
             .await
             .map_err(|e| anyhow::anyhow!("{:?}", e))?;
@@ -291,7 +296,8 @@ impl Backend for WebGpu {
         bytes_buffer.write(data).unwrap();
         let elt_sz = bytes.len() / data.len();
 
-        self.queue.write_buffer(buffer, offset * elt_sz as u64, &bytes);
+        self.queue
+            .write_buffer(buffer, offset * elt_sz as u64, &bytes);
         Ok(())
     }
 
@@ -492,10 +498,7 @@ impl CommandEncoderExt for CommandEncoder {
     }
 }
 
-async fn read_bytes<'a>(
-    device: &Device,
-    buffer: &'a Buffer,
-) -> Result<BufferView, WebGpuBackendError> {
+async fn read_bytes(device: &Device, buffer: &Buffer) -> Result<BufferView, WebGpuBackendError> {
     let buffer_slice = buffer.slice(..);
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -561,12 +564,16 @@ impl<T: DeviceValue> crate::backend::Buffer<WebGpu, T> for Buffer {
     }
 
     fn len(&self) -> usize
-    where T: Sized {
+    where
+        T: Sized,
+    {
         self.size() as usize / std::mem::size_of::<T>()
     }
 
     fn len_encased(&self) -> usize
-    where T: EncaseType {
+    where
+        T: EncaseType,
+    {
         self.size() as usize / T::SHADER_SIZE.get() as usize
     }
 

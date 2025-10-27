@@ -192,9 +192,11 @@ pub trait Dispatch<'a, B: Backend> {
 pub trait Buffer<B: Backend, T: DeviceValue>: Send + Sync + for<'b> ShaderArgs<'b, B> {
     fn is_empty(&self) -> bool;
     fn len(&self) -> usize
-    where T: Sized;
+    where
+        T: Sized;
     fn len_encased(&self) -> usize
-    where T: EncaseType;
+    where
+        T: EncaseType;
     fn as_slice(&self) -> B::BufferSlice<'_, T> {
         self.slice(..)
     }

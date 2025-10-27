@@ -105,7 +105,7 @@ impl SlangCompiler {
                 .collect();
 
             for specialization in specializations {
-                let spec_module = session.load_module(&specialization).unwrap();
+                let spec_module = session.load_module(specialization).unwrap();
                 entry_points.push(spec_module.downcast().clone());
             }
 
@@ -173,7 +173,13 @@ impl SlangCompiler {
                     target_path.display()
                 );
                 std::fs::create_dir_all(target_parent_dir).unwrap();
-                self.compile_to(target, path.to_str().unwrap(), target_path, &[], macro_defines);
+                self.compile_to(
+                    target,
+                    path.to_str().unwrap(),
+                    target_path,
+                    &[],
+                    macro_defines,
+                );
             }
         }
     }

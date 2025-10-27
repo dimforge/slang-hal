@@ -3,7 +3,7 @@
 The **slang-hal** library provides abstractions for running slang shaders on any platform supported by the slang compiler.
 
 > **Warning**
-**slang-hal** is still very incomplete and under heavy development and is lacking a lot of features and backends.
+> **slang-hal** is still very incomplete and under heavy development and is lacking a lot of features and backends.
 
 ### Using Slang
 
