@@ -53,7 +53,7 @@ jobs:
         id: setup
         run: |
           echo "version=$SLANG_TAG" >> $GITHUB_OUTPUT  # Output for cache key
-          SLANG_DIR=$(./download_slang.sh --version $SLANG_TAG | grep '^SLANG_DIR=' | cut -d'=' -f2-)
+          SLANG_DIR=$(./.github/workflows/download_slang.sh --version $SLANG_TAG | grep '^SLANG_DIR=' | cut -d'=' -f2-)
           echo "slang-dir=$SLANG_DIR" >> $GITHUB_OUTPUT  # Output for dependents
           echo "slang-cache-key=slang-v$SLANG_TAG-${{ runner.os }}-${{ runner.arch }}" >> $GITHUB_OUTPUT
           echo "SLANG_DIR=$SLANG_DIR" >> $GITHUB_ENV  # For this job if needed
