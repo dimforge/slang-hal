@@ -13,12 +13,7 @@ use std::borrow::Cow;
 use std::ops::RangeBounds;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::wgt::CommandEncoderDescriptor;
-use wgpu::{
-    Adapter, Buffer, BufferAddress, BufferDescriptor, BufferSlice, BufferUsages, BufferView,
-    CommandEncoder, ComputePass, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor,
-    Device, Instance, PipelineCompilationOptions, PollError, Queue, ShaderModule,
-    ShaderRuntimeChecks,
-};
+use wgpu::{Adapter, Buffer, BufferAddress, BufferDescriptor, BufferSlice, BufferUsages, BufferView, CommandEncoder, ComputePass, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor, Device, ExperimentalFeatures, Instance, PipelineCompilationOptions, PollError, Queue, ShaderModule, ShaderRuntimeChecks};
 
 /// Helper struct to initialize a device and its queue.
 pub struct WebGpu {
@@ -54,6 +49,7 @@ impl WebGpu {
                 required_limits: limits,
                 memory_hints: Default::default(),
                 trace: wgpu::Trace::Off,
+                experimental_features: ExperimentalFeatures::default()
             })
             .await
             .map_err(|e| anyhow::anyhow!("{:?}", e))?;
@@ -300,7 +296,7 @@ impl Backend for WebGpu {
     }
 
     fn synchronize(&self) -> Result<(), Self::Error> {
-        self.device.poll(wgpu::PollType::wait())?;
+        self.device.poll(wgpu::PollType::wait_indefinitely())?;
         Ok(())
     }
 
@@ -499,7 +495,7 @@ impl CommandEncoderExt for CommandEncoder {
 async fn read_bytes<'a>(
     device: &Device,
     buffer: &'a Buffer,
-) -> Result<BufferView<'a>, WebGpuBackendError> {
+) -> Result<BufferView, WebGpuBackendError> {
     let buffer_slice = buffer.slice(..);
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -508,7 +504,7 @@ async fn read_bytes<'a>(
         buffer_slice.map_async(wgpu::MapMode::Read, move |v| {
             sender.send_blocking(v).unwrap()
         });
-        device.poll(wgpu::PollType::wait())?;
+        device.poll(wgpu::PollType::wait_indefinitely())?;
         receiver
             .recv()
             .await
@@ -521,7 +517,7 @@ async fn read_bytes<'a>(
         buffer_slice.map_async(wgpu::MapMode::Read, move |v| {
             let _ = sender.force_send(v).unwrap();
         });
-        device.poll(wgpu::PollType::wait());
+        device.poll(wgpu::PollType::wait_indefinitely());
         receiver.recv().await?.unwrap();
     }
 
