@@ -1,6 +1,6 @@
 use crate::ShaderArgs;
 use crate::shader::ShaderArgsError;
-use bytemuck::Pod;
+use bytemuck::{AnyBitPattern, NoUninit};
 use encase::internal::{CreateFrom, WriteInto};
 use encase::private::ReadFrom;
 use encase::{ShaderSize, ShaderType};
@@ -93,7 +93,7 @@ pub trait Backend: 'static + Sized + Send + Sync {
     /*
      * Buffer handling.
      */
-    fn init_buffer<T: DeviceValue + Pod>(
+    fn init_buffer<T: DeviceValue + NoUninit>(
         &self,
         data: &[T],
         usage: BufferUsages,
@@ -106,32 +106,30 @@ pub trait Backend: 'static + Sized + Send + Sync {
 
     // fn init_buffer_bytes<T: Copy>(&self, bytes: &[u8], usage: BufferUsages) -> Result<Self::Buffer<T>, Self::Error>;
 
-    /// # Safety
-    /// The returned buffer must be initialized before being read from.
-    unsafe fn uninit_buffer<T: DeviceValue + Pod>(
+    fn uninit_buffer<T: DeviceValue + NoUninit>(
         &self,
         len: usize,
         usage: BufferUsages,
     ) -> Result<Self::Buffer<T>, Self::Error>;
 
-    /// # Safety
-    /// The returned buffer must be initialized before being read from.
-    unsafe fn uninit_buffer_encased<T: DeviceValue + EncaseType>(
+    fn uninit_buffer_encased<T: DeviceValue + EncaseType>(
         &self,
         len: usize,
         usage: BufferUsages,
     ) -> Result<Self::Buffer<T>, Self::Error>;
-    fn write_buffer<T: DeviceValue + Pod>(
+    fn write_buffer<T: DeviceValue + NoUninit>(
         &self,
         buffer: &mut Self::Buffer<T>,
+        offset: u64,
         data: &[T],
     ) -> Result<(), Self::Error>;
     fn write_buffer_encased<T: DeviceValue + EncaseType>(
         &self,
         buffer: &mut Self::Buffer<T>,
+        offset: u64,
         data: &[T],
     ) -> Result<(), Self::Error>;
-    async fn read_buffer<T: DeviceValue + Pod>(
+    async fn read_buffer<T: DeviceValue + AnyBitPattern>(
         &self,
         buffer: &Self::Buffer<T>,
         data: &mut [T],
@@ -147,13 +145,13 @@ pub trait Backend: 'static + Sized + Send + Sync {
     /// This is slower, but more convenient than [`Self::read_buffer`] because it takes care of
     /// creating a staging buffer, running a buffer-to-buffer copy from `buffer` to the staging
     /// buffer, and running a buffer-to-host copy from the staging buffer to `data`.
-    async fn slow_read_buffer<T: DeviceValue + Pod>(
+    async fn slow_read_buffer<T: DeviceValue + AnyBitPattern>(
         &self,
         buffer: &Self::Buffer<T>,
         data: &mut [T],
     ) -> Result<(), Self::Error>;
 
-    async fn slow_read_vec<T: DeviceValue + Pod + Default>(
+    async fn slow_read_vec<T: DeviceValue + AnyBitPattern + Default>(
         &self,
         buffer: &Self::Buffer<T>,
     ) -> Result<Vec<T>, Self::Error> {
@@ -165,7 +163,7 @@ pub trait Backend: 'static + Sized + Send + Sync {
 
 pub trait Encoder<B: Backend> {
     fn begin_pass(&mut self) -> B::Pass;
-    fn copy_buffer_to_buffer<T: DeviceValue + Pod>(
+    fn copy_buffer_to_buffer<T: DeviceValue + NoUninit>(
         &mut self,
         source: &B::Buffer<T>,
         source_offset: usize,
@@ -192,15 +190,18 @@ pub trait Dispatch<'a, B: Backend> {
 }
 
 pub trait Buffer<B: Backend, T: DeviceValue>: Send + Sync + for<'b> ShaderArgs<'b, B> {
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    fn len(&self) -> usize;
+    fn is_empty(&self) -> bool;
+    fn len(&self) -> usize
+    where
+        T: Sized;
+    fn len_encased(&self) -> usize
+    where
+        T: EncaseType;
     fn as_slice(&self) -> B::BufferSlice<'_, T> {
         self.slice(..)
     }
     fn slice(&self, range: impl RangeBounds<usize>) -> B::BufferSlice<'_, T>;
+    fn usage(&self) -> BufferUsages;
 }
 
 pub enum DispatchGrid<'a, B: Backend> {

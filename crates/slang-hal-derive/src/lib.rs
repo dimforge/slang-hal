@@ -5,12 +5,14 @@ extern crate proc_macro;
 use darling::FromDeriveInput;
 use proc_macro::TokenStream;
 use quote::{ToTokens, quote};
-use syn::{Data, DataStruct};
+use syn::{Data, DataStruct, LitStr};
 
 #[derive(FromDeriveInput, Clone)]
 #[darling(attributes(shader))]
 struct DeriveShadersParams {
     pub module: String,
+    #[darling(default)]
+    pub specialize: Option<Vec<LitStr>>,
 }
 
 #[proc_macro_derive(Shader, attributes(shader))]
@@ -32,6 +34,8 @@ pub fn derive_shader(item: TokenStream) -> TokenStream {
              */
             let mut kernels_to_build = vec![];
             let slang_path = derive_shaders.module.replace("::", "/");
+            let specialization_paths: Vec<_> = derive_shaders.specialize.unwrap_or_default()
+                .iter().map(|str| str.value().replace("::", "/")).collect();
 
             for field in fields.iter() {
                 let ident = field
@@ -40,12 +44,18 @@ pub fn derive_shader(item: TokenStream) -> TokenStream {
                     .expect("unnamed fields not supported")
                     .into_token_stream();
 
+                // NOTE: if the user provided specializations explicitly, we use that instead of the default one in the #[shader(...)] definition.
+                //       This implies that the user must overwrite **all** the specializations. We don’t support partial overwrites yet.
                 kernels_to_build.push(quote! {
-                    #ident: GpuFunction::from_file(backend, compiler, #slang_path, stringify!(#ident))?,
+                    #ident: if specializations.is_empty() {
+                        GpuFunction::from_file(backend, compiler, #slang_path, stringify!(#ident), &[#((#specialization_paths).to_string()),*])?
+                    } else {
+                        GpuFunction::from_file(backend, compiler, #slang_path, stringify!(#ident), specializations)?
+                    },
                 });
             }
 
-            let from_backend = quote! {
+            let with_specializations_impl = quote! {
                 Ok(Self {
                     #(
                         #kernels_to_build
@@ -56,8 +66,8 @@ pub fn derive_shader(item: TokenStream) -> TokenStream {
             quote! {
                 #[automatically_derived]
                 impl<B: Backend> slang_hal::shader::Shader<B> for #struct_identifier<B> {
-                    fn from_backend(backend: &B, compiler: &slang_hal::re_exports::minislang::SlangCompiler) -> Result<Self, B::Error> {
-                        #from_backend
+                    fn with_specializations(backend: &B, compiler: &slang_hal::re_exports::minislang::SlangCompiler, specializations: &[String]) -> Result<Self, B::Error> {
+                        #with_specializations_impl
                     }
                 }
             }
@@ -71,6 +81,19 @@ pub fn derive_shader(item: TokenStream) -> TokenStream {
 pub fn derive_shader_args(item: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(item as syn::DeriveInput);
     let struct_identifier = &input.ident;
+
+    // Extract generics from the input struct
+    let mut generics = input.generics.clone();
+
+    // Add 'b lifetime to impl generics
+    generics.params.insert(0, syn::parse_quote!('b));
+
+    // Add B: Backend bound to where clause
+    let where_clause = generics.make_where_clause();
+    where_clause.predicates.push(syn::parse_quote!(B: Backend));
+
+    let (impl_generics, _, _) = generics.split_for_impl();
+    let (_, ty_generics, _) = input.generics.split_for_impl();
 
     match &input.data {
         Data::Struct(DataStruct { fields, .. }) => {
@@ -91,12 +114,15 @@ pub fn derive_shader_args(item: TokenStream) -> TokenStream {
                 });
             }
 
+            let where_clause = &generics.where_clause;
+
             quote! {
                 #[automatically_derived]
-                // TODO: don't hard-code the lifetime requirement?
-                impl<'b, B: Backend> slang_hal::shader::ShaderArgs<'b, B> for #struct_identifier<'_, B> {
-                    fn write_arg<'a>(&'b self, binding: slang_hal::backend::ShaderBinding, name: &str, dispatch: &mut B::Dispatch<'a>) -> Result<(), slang_hal::shader::ShaderArgsError>
-                    where 'b: 'a {
+                impl #impl_generics slang_hal::shader::ShaderArgs<'b, B> for #struct_identifier #ty_generics
+                #where_clause
+                {
+                    fn write_arg<'c>(&'b self, binding: slang_hal::backend::ShaderBinding, name: &str, dispatch: &mut B::Dispatch<'c>) -> Result<(), slang_hal::shader::ShaderArgsError>
+                    where 'b: 'c {
                         use slang_hal::backend::Dispatch;
                         match name {
                             #(

@@ -3,7 +3,17 @@ use minislang::SlangCompiler;
 
 pub trait Shader<B: Backend>: Sized + 'static {
     /// Instantiates `Self` and all its compute functions from a backend.
-    fn from_backend(b: &B, compiler: &SlangCompiler) -> Result<Self, B::Error>;
+    fn from_backend(b: &B, compiler: &SlangCompiler) -> Result<Self, B::Error> {
+        Self::with_specializations(b, compiler, &[])
+    }
+
+    /// Instantiates `Self` and all its compute functions from a backend and a set of
+    /// module paths for link-time specialization.
+    fn with_specializations(
+        b: &B,
+        compiler: &SlangCompiler,
+        specializations: &[String],
+    ) -> Result<Self, B::Error>;
 }
 
 #[derive(thiserror::Error, Debug)]

@@ -64,8 +64,8 @@ async fn compute_sum_on_gpu<B: Backend>(
     b: &[f32],
 ) -> Result<Vec<f32>, B::Error> {
     // Generate the GPU buffers.
-    let a = backend.init_buffer(&a, BufferUsages::STORAGE | BufferUsages::COPY_SRC)?;
-    let b = backend.init_buffer(&b, BufferUsages::STORAGE)?;
+    let a = backend.init_buffer(a, BufferUsages::STORAGE | BufferUsages::COPY_SRC)?;
+    let b = backend.init_buffer(b, BufferUsages::STORAGE)?;
 
     // Dispatch the operation on the gpu.
     let add = GpuAdd::from_backend(backend, compiler)?;

@@ -4,7 +4,7 @@ use crate::backend::{
 };
 use crate::shader::ShaderArgsError;
 use async_channel::RecvError;
-use bytemuck::Pod;
+use bytemuck::{AnyBitPattern, NoUninit};
 use encase::{ShaderType, StorageBuffer};
 use minislang::shader_slang;
 use regex::Regex;
@@ -16,8 +16,8 @@ use wgpu::wgt::CommandEncoderDescriptor;
 use wgpu::{
     Adapter, Buffer, BufferAddress, BufferDescriptor, BufferSlice, BufferUsages, BufferView,
     CommandEncoder, ComputePass, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor,
-    Device, Instance, PipelineCompilationOptions, PollError, Queue, ShaderModule,
-    ShaderRuntimeChecks,
+    Device, ExperimentalFeatures, Instance, PipelineCompilationOptions, PollError, Queue,
+    ShaderModule, ShaderRuntimeChecks,
 };
 
 /// Helper struct to initialize a device and its queue.
@@ -54,6 +54,7 @@ impl WebGpu {
                 required_limits: limits,
                 memory_hints: Default::default(),
                 trace: wgpu::Trace::Off,
+                experimental_features: ExperimentalFeatures::default(),
             })
             .await
             .map_err(|e| anyhow::anyhow!("{:?}", e))?;
@@ -193,7 +194,7 @@ impl Backend for WebGpu {
     /*
      * Buffer handling.
      */
-    fn init_buffer<T: DeviceValue + Pod>(
+    fn init_buffer<T: DeviceValue + NoUninit>(
         &self,
         data: &[T],
         mut usage: BufferUsages,
@@ -237,7 +238,7 @@ impl Backend for WebGpu {
     //     }))
     // }
 
-    unsafe fn uninit_buffer<T: DeviceValue + Pod>(
+    fn uninit_buffer<T: DeviceValue + NoUninit>(
         &self,
         len: usize,
         mut usage: BufferUsages,
@@ -255,7 +256,7 @@ impl Backend for WebGpu {
         }))
     }
 
-    unsafe fn uninit_buffer_encased<T: DeviceValue + ShaderType>(
+    fn uninit_buffer_encased<T: DeviceValue + ShaderType>(
         &self,
         len: usize,
         mut usage: BufferUsages,
@@ -273,34 +274,39 @@ impl Backend for WebGpu {
         }))
     }
 
-    fn write_buffer<T: DeviceValue + Pod>(
+    fn write_buffer<T: DeviceValue + NoUninit>(
         &self,
         buffer: &mut Self::Buffer<T>,
+        offset: u64,
         data: &[T],
     ) -> Result<(), Self::Error> {
+        let elt_sz = std::mem::size_of::<T>() as u64;
         self.queue
-            .write_buffer(buffer, 0, bytemuck::cast_slice(data));
+            .write_buffer(buffer, offset * elt_sz, bytemuck::cast_slice(data));
         Ok(())
     }
     fn write_buffer_encased<T: DeviceValue + EncaseType>(
         &self,
         buffer: &mut Self::Buffer<T>,
+        offset: u64,
         data: &[T],
     ) -> Result<(), Self::Error> {
         let mut bytes = vec![]; // TODO: can we avoid the allocation?
         let mut bytes_buffer = StorageBuffer::new(&mut bytes);
         bytes_buffer.write(data).unwrap();
+        let elt_sz = bytes.len() / data.len();
 
-        self.queue.write_buffer(buffer, 0, &bytes);
+        self.queue
+            .write_buffer(buffer, offset * elt_sz as u64, &bytes);
         Ok(())
     }
 
     fn synchronize(&self) -> Result<(), Self::Error> {
-        self.device.poll(wgpu::PollType::wait())?;
+        self.device.poll(wgpu::PollType::wait_indefinitely())?;
         Ok(())
     }
 
-    async fn read_buffer<T: DeviceValue + Pod>(
+    async fn read_buffer<T: DeviceValue + AnyBitPattern>(
         &self,
         buffer: &Self::Buffer<T>,
         out: &mut [T],
@@ -331,21 +337,18 @@ impl Backend for WebGpu {
         Ok(())
     }
 
-    async fn slow_read_buffer<T: DeviceValue + Pod>(
+    async fn slow_read_buffer<T: DeviceValue + AnyBitPattern>(
         &self,
         buffer: &Self::Buffer<T>,
         out: &mut [T],
     ) -> Result<(), Self::Error> {
         // Create staging buffer.
-        // SAFETY: the buffer will be initialized by a buffer-to-buffer copy.
         let bytes_len = buffer.size() as usize;
-        let staging = unsafe {
-            // TODO: not using `u8` because it doesn’t implement ShaderType
-            self.uninit_buffer::<u32>(
-                bytes_len.div_ceil(4),
-                BufferUsages::MAP_READ | BufferUsages::COPY_DST,
-            )?
-        };
+        // TODO: not using `u8` because it doesn’t implement ShaderType
+        let staging = self.uninit_buffer::<u32>(
+            bytes_len.div_ceil(4),
+            BufferUsages::MAP_READ | BufferUsages::COPY_DST,
+        )?;
         let mut encoder = self.begin_encoding();
         encoder.copy_buffer_to_buffer(buffer, 0, &staging, 0, bytes_len as u64);
         self.submit(encoder)?;
@@ -360,7 +363,7 @@ impl Encoder<WebGpu> for wgpu::CommandEncoder {
         self.compute_pass("").forget_lifetime()
     }
 
-    fn copy_buffer_to_buffer<T: DeviceValue + Pod>(
+    fn copy_buffer_to_buffer<T: DeviceValue + NoUninit>(
         &mut self,
         source: &<WebGpu as Backend>::Buffer<T>,
         source_offset: usize,
@@ -495,10 +498,7 @@ impl CommandEncoderExt for CommandEncoder {
     }
 }
 
-async fn read_bytes<'a>(
-    device: &Device,
-    buffer: &'a Buffer,
-) -> Result<BufferView<'a>, WebGpuBackendError> {
+async fn read_bytes(device: &Device, buffer: &Buffer) -> Result<BufferView, WebGpuBackendError> {
     let buffer_slice = buffer.slice(..);
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -507,7 +507,7 @@ async fn read_bytes<'a>(
         buffer_slice.map_async(wgpu::MapMode::Read, move |v| {
             sender.send_blocking(v).unwrap()
         });
-        device.poll(wgpu::PollType::wait())?;
+        device.poll(wgpu::PollType::wait_indefinitely())?;
         receiver
             .recv()
             .await
@@ -520,7 +520,7 @@ async fn read_bytes<'a>(
         buffer_slice.map_async(wgpu::MapMode::Read, move |v| {
             let _ = sender.force_send(v).unwrap();
         });
-        device.poll(wgpu::PollType::wait());
+        device.poll(wgpu::PollType::wait_indefinitely());
         receiver.recv().await?.unwrap();
     }
 
@@ -559,8 +559,22 @@ impl<'b> ShaderArgs<'b, WebGpu> for BufferSlice<'_> {
 }
 
 impl<T: DeviceValue> crate::backend::Buffer<WebGpu, T> for Buffer {
-    fn len(&self) -> usize {
+    fn is_empty(&self) -> bool {
+        self.size() == 0
+    }
+
+    fn len(&self) -> usize
+    where
+        T: Sized,
+    {
         self.size() as usize / std::mem::size_of::<T>()
+    }
+
+    fn len_encased(&self) -> usize
+    where
+        T: EncaseType,
+    {
+        self.size() as usize / T::SHADER_SIZE.get() as usize
     }
 
     fn slice(&self, range: impl RangeBounds<usize>) -> <WebGpu as Backend>::BufferSlice<'_, T> {
@@ -571,5 +585,9 @@ impl<T: DeviceValue> crate::backend::Buffer<WebGpu, T> for Buffer {
             .end_bound()
             .map(|val| *val as u64 * std::mem::size_of::<T>() as u64);
         self.slice((start, end))
+    }
+
+    fn usage(&self) -> BufferUsages {
+        self.usage()
     }
 }

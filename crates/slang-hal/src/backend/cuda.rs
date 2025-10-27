@@ -3,20 +3,19 @@ use crate::backend::{
     Backend, DeviceValue, Dispatch, DispatchGrid, EncaseType, Encoder, ShaderBinding,
 };
 use crate::shader::ShaderArgsError;
-use bytemuck::Pod;
+use bytemuck::{AnyBitPattern, NoUninit};
 use cudarc::driver::safe::{CudaFunction, CudaSlice, CudaStream, DeviceRepr, LaunchArgs};
-use cudarc::driver::{CudaContext, CudaModule, CudaView, CudaViewMut, LaunchConfig, PushKernelArg};
+use cudarc::driver::{CudaContext, CudaModule, CudaView, LaunchConfig, PushKernelArg};
 use cudarc::nvrtc::Ptx;
 use minislang::shader_slang;
 use std::ffi::{CStr, FromBytesWithNulError};
 use std::ops::RangeBounds;
 use std::sync::Arc;
-use wgpu::{Buffer, BufferSlice, BufferUsages};
+use wgpu::BufferUsages;
 
 #[cfg(feature = "cublas")]
 use cudarc::cublas::safe::CudaBlas;
 use encase::ShaderType;
-use encase::private::RuntimeSizedArray;
 
 #[derive(Clone)]
 pub struct Cuda {
@@ -46,9 +45,12 @@ impl Cuda {
     }
 }
 
-#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Copy, Clone, bytemuck::AnyBitPattern)]
 #[repr(transparent)]
-pub struct ForceDeviceRepr<T: DeviceValue>(pub T);
+pub struct ForceDeviceRepr<T>(pub T);
+
+// Safety: repr(transparent)
+unsafe impl<T: NoUninit> bytemuck::NoUninit for ForceDeviceRepr<T> {}
 
 #[derive(thiserror::Error, Debug)]
 pub enum CudaBackendError {
@@ -130,12 +132,13 @@ impl Backend for Cuda {
     /*
      * Buffer handling.
      */
-    fn init_buffer<T: DeviceValue + Pod>(
+    fn init_buffer<T: DeviceValue + NoUninit>(
         &self,
         data: &[T],
         _usage: BufferUsages,
     ) -> Result<Self::Buffer<T>, Self::Error> {
-        let wrapped: &[ForceDeviceRepr<T>] = bytemuck::try_cast_slice(data)?;
+        // SAFETY: &[T] and &[ForceDeviceRepr<T>] share the same repr.
+        let wrapped: &[ForceDeviceRepr<T>] = unsafe { std::mem::transmute(data) };
         Ok(self.stream.memcpy_stod(wrapped)?)
     }
 
@@ -149,15 +152,15 @@ impl Backend for Cuda {
         todo!()
     }
 
-    unsafe fn uninit_buffer<T: DeviceValue + Pod>(
+    fn uninit_buffer<T: DeviceValue + NoUninit>(
         &self,
         len: usize,
         _usage: BufferUsages,
     ) -> Result<Self::Buffer<T>, Self::Error> {
-        Ok(self.stream.alloc(len)?)
+        Ok(unsafe { self.stream.alloc(len)? })
     }
 
-    unsafe fn uninit_buffer_encased<T: DeviceValue + EncaseType>(
+    fn uninit_buffer_encased<T: DeviceValue + EncaseType>(
         &self,
         len: usize,
         _usage: BufferUsages,
@@ -166,18 +169,25 @@ impl Backend for Cuda {
         todo!()
     }
 
-    fn write_buffer<T: DeviceValue + Pod>(
+    fn write_buffer<T: DeviceValue + NoUninit>(
         &self,
         buffer: &mut Self::Buffer<T>,
+        offset: u64,
         data: &[T],
     ) -> Result<(), Self::Error> {
-        let wrapped: &[ForceDeviceRepr<T>] = bytemuck::try_cast_slice(data)?;
+        assert_eq!(
+            offset, 0,
+            "non-zero offset not supported by the cuda backend yet"
+        );
+        // SAFETY: &[T] and &[ForceDeviceRepr<T>] share the same repr.
+        let wrapped: &[ForceDeviceRepr<T>] = unsafe { std::mem::transmute(data) };
         Ok(self.stream.memcpy_htod(wrapped, buffer)?)
     }
 
     fn write_buffer_encased<T: DeviceValue + EncaseType>(
         &self,
         buffer: &mut Self::Buffer<T>,
+        offset: u64,
         data: &[T],
     ) -> Result<(), Self::Error> {
         // let wrapped: &[ForceDeviceRepr<T>] = bytemuck::try_cast_slice(data)?;
@@ -185,12 +195,13 @@ impl Backend for Cuda {
         todo!()
     }
 
-    async fn read_buffer<T: DeviceValue + Pod>(
+    async fn read_buffer<T: DeviceValue + AnyBitPattern>(
         &self,
         buffer: &Self::Buffer<T>,
         data: &mut [T],
     ) -> Result<(), Self::Error> {
-        let wrapped: &mut [ForceDeviceRepr<T>] = bytemuck::try_cast_slice_mut(data)?;
+        // SAFETY: &mut [T] and &mut [ForceDeviceRepr<T>] share the same repr.
+        let wrapped: &mut [ForceDeviceRepr<T>] = unsafe { std::mem::transmute(data) };
         Ok(self
             .stream
             .memcpy_dtoh(buffer, &mut wrapped[..buffer.len()])?)
@@ -208,7 +219,7 @@ impl Backend for Cuda {
         todo!()
     }
 
-    async fn slow_read_buffer<T: DeviceValue + Pod>(
+    async fn slow_read_buffer<T: DeviceValue + AnyBitPattern>(
         &self,
         buffer: &Self::Buffer<T>,
         data: &mut [T],
@@ -222,7 +233,7 @@ impl Encoder<Cuda> for Cuda {
         self.clone()
     }
 
-    fn copy_buffer_to_buffer<T: DeviceValue + Pod>(
+    fn copy_buffer_to_buffer<T: DeviceValue + NoUninit>(
         &mut self,
         source: &<Cuda as Backend>::Buffer<T>,
         source_offset: usize,
@@ -306,17 +317,33 @@ impl<'b, T: DeviceValue> ShaderArgs<'b, Cuda> for CudaView<'_, T> {
     where
         'b: 'a,
     {
-        dispatch.arg(&*self);
+        dispatch.arg(self);
         Ok(())
     }
 }
 
 impl<T: DeviceValue> crate::backend::Buffer<Cuda, T> for CudaSlice<ForceDeviceRepr<T>> {
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     fn len(&self) -> usize {
         (*self).len()
     }
 
+    fn len_encased(&self) -> usize
+    where
+        T: EncaseType,
+    {
+        todo!()
+    }
+
     fn slice(&self, range: impl RangeBounds<usize>) -> <Cuda as Backend>::BufferSlice<'_, T> {
         self.slice(range)
+    }
+
+    fn usage(&self) -> BufferUsages {
+        // cuda doesn’t really have a concept of buffer usages.
+        BufferUsages::all()
     }
 }

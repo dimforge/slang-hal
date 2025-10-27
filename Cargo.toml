@@ -19,7 +19,7 @@ shader-slang-sys = "0.1"
 
 # TODO: make the wgpu dependency optional too (all backends should be optional but with
 #       wgpu enabled by default).
-wgpu = { version = "26", features = ["naga-ir"] }
+wgpu = { version = "27", features = ["naga-ir"] }
 encase = "0.12"
 
 [workspace.lints]
