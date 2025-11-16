@@ -1,11 +1,10 @@
 use crate::ShaderArgs;
-use crate::backend::{
-    Backend, DeviceValue, Dispatch, DispatchGrid, EncaseType, Encoder, ShaderBinding,
-};
+use crate::backend::{Backend, BufferUsages, DeviceValue, Dispatch, DispatchGrid, EncaseType, Encoder, MaybeSendSync, ShaderBinding};
 use crate::shader::ShaderArgsError;
 use async_channel::RecvError;
 use bytemuck::{AnyBitPattern, NoUninit};
 use encase::{ShaderType, StorageBuffer};
+#[cfg(feature = "runtime")]
 use minislang::shader_slang;
 use regex::Regex;
 use smallvec::SmallVec;
@@ -14,7 +13,7 @@ use std::ops::RangeBounds;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::wgt::CommandEncoderDescriptor;
 use wgpu::{
-    Adapter, Buffer, BufferAddress, BufferDescriptor, BufferSlice, BufferUsages, BufferView,
+    Adapter, Buffer, BufferAddress, BufferDescriptor, BufferSlice, BufferUsages as WgpuBufferUsages, BufferView,
     CommandEncoder, ComputePass, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor,
     Device, ExperimentalFeatures, Instance, PipelineCompilationOptions, PollError, Queue,
     ShaderModule, ShaderRuntimeChecks,
@@ -88,20 +87,21 @@ impl WebGpu {
 pub enum WebGpuBackendError {
     #[error(transparent)]
     ShaderArg(#[from] ShaderArgsError),
-    #[error(transparent)]
-    Wgpu(#[from] wgpu::Error),
+    // #[error(transparent)]
+    // Wgpu(#[from] wgpu::Error), // Doesn’t implement Send+Sync
     #[error(transparent)]
     BytemuckPod(#[from] bytemuck::PodCastError),
     #[error("Failed to read buffer from GPU: {0}")]
     BufferRead(RecvError),
     #[error(transparent)]
     DevicePoll(#[from] PollError),
+    #[error(transparent)]
+    Recv(#[from] RecvError),
 }
 
-#[async_trait::async_trait]
 impl Backend for WebGpu {
     const NAME: &'static str = "webgpu";
-    const TARGET: shader_slang::CompileTarget = shader_slang::CompileTarget::Wgsl;
+    const TARGET: super::CompileTarget = super::CompileTarget::Wgsl;
 
     type Error = WebGpuBackendError;
     type Buffer<T: DeviceValue> = Buffer;
@@ -206,7 +206,7 @@ impl Backend for WebGpu {
         Ok(self.device.create_buffer_init(&BufferInitDescriptor {
             label: None,
             contents: bytemuck::try_cast_slice(data)?,
-            usage,
+            usage: usage.into(),
         }))
     }
 
@@ -226,7 +226,7 @@ impl Backend for WebGpu {
         Ok(self.device.create_buffer_init(&BufferInitDescriptor {
             label: None,
             contents: &bytes,
-            usage,
+            usage: usage.into(),
         }))
     }
 
@@ -251,7 +251,7 @@ impl Backend for WebGpu {
         Ok(self.device.create_buffer(&BufferDescriptor {
             label: None,
             size: bytes_len,
-            usage,
+            usage: usage.into(),
             mapped_at_creation: false,
         }))
     }
@@ -269,7 +269,7 @@ impl Backend for WebGpu {
         Ok(self.device.create_buffer(&BufferDescriptor {
             label: None,
             size: bytes_len,
-            usage,
+            usage: usage.into(),
             mapped_at_creation: false,
         }))
     }
@@ -306,55 +306,61 @@ impl Backend for WebGpu {
         Ok(())
     }
 
-    async fn read_buffer<T: DeviceValue + AnyBitPattern>(
+    fn read_buffer<T: MaybeSendSync + DeviceValue + AnyBitPattern>(
         &self,
         buffer: &Self::Buffer<T>,
         out: &mut [T],
-    ) -> Result<(), Self::Error> {
-        let data = read_bytes(&self.device, buffer).await?;
-        let result = bytemuck::try_cast_slice(&data)?;
-        out[..result.len()].copy_from_slice(result);
-        drop(data);
-        buffer.unmap();
-        Ok(())
+    ) -> impl Future<Output = Result<(), Self::Error>> + MaybeSendSync {
+        async move {
+            let data = read_bytes(&self.device, buffer).await?;
+            let result = bytemuck::try_cast_slice(&data)?;
+            out[..result.len()].copy_from_slice(result);
+            drop(data);
+            buffer.unmap();
+            Ok(())
+        }
     }
 
-    async fn read_buffer_encased<T: DeviceValue + EncaseType>(
+    fn read_buffer_encased<T: MaybeSendSync + DeviceValue + EncaseType>(
         &self,
         buffer: &Self::Buffer<T>,
         out: &mut [T],
-    ) -> Result<(), Self::Error> {
-        let data = read_bytes(&self.device, buffer).await?;
+    ) -> impl Future<Output = Result<(), Self::Error>> + MaybeSendSync {
+        async move {
+            let data = read_bytes(&self.device, buffer).await?;
 
-        let mut result = vec![];
-        let bytes = data.as_ref();
-        let encase_buffer = StorageBuffer::new(&bytes);
-        encase_buffer.read(&mut result).unwrap(); // TODO: propagate error
-        out[..result.len()].copy_from_slice(&result);
+            let mut result = vec![];
+            let bytes = data.as_ref();
+            let encase_buffer = StorageBuffer::new(&bytes);
+            encase_buffer.read(&mut result).unwrap(); // TODO: propagate error
+            out[..result.len()].copy_from_slice(&result);
 
-        drop(data);
-        buffer.unmap();
-        Ok(())
+            drop(data);
+            buffer.unmap();
+            Ok(())
+        }
     }
 
-    async fn slow_read_buffer<T: DeviceValue + AnyBitPattern>(
+    fn slow_read_buffer<T: MaybeSendSync + DeviceValue + AnyBitPattern>(
         &self,
         buffer: &Self::Buffer<T>,
         out: &mut [T],
-    ) -> Result<(), Self::Error> {
-        // Create staging buffer.
-        let bytes_len = buffer.size() as usize;
-        // TODO: not using `u8` because it doesn’t implement ShaderType
-        let staging = self.uninit_buffer::<u32>(
-            bytes_len.div_ceil(4),
-            BufferUsages::MAP_READ | BufferUsages::COPY_DST,
-        )?;
-        let mut encoder = self.begin_encoding();
-        encoder.copy_buffer_to_buffer(buffer, 0, &staging, 0, bytes_len as u64);
-        self.submit(encoder)?;
+    ) -> impl Future<Output = Result<(), Self::Error>> + MaybeSendSync {
+        async move {
+            // Create staging buffer.
+            let bytes_len = buffer.size() as usize;
+            // TODO: not using `u8` because it doesn’t implement ShaderType
+            let staging = self.uninit_buffer::<u32>(
+                bytes_len.div_ceil(4),
+                BufferUsages::MAP_READ | BufferUsages::COPY_DST,
+            )?;
+            let mut encoder = self.begin_encoding();
+            encoder.copy_buffer_to_buffer(buffer, 0, &staging, 0, bytes_len as u64);
+            self.submit(encoder)?;
 
-        // Read the buffer.
-        Ok(self.read_buffer(&staging, out).await?)
+            // Read the buffer.
+            Ok(self.read_buffer(&staging, out).await?)
+        }
     }
 }
 
@@ -588,6 +594,6 @@ impl<T: DeviceValue> crate::backend::Buffer<WebGpu, T> for Buffer {
     }
 
     fn usage(&self) -> BufferUsages {
-        self.usage()
+        self.usage().into()
     }
 }

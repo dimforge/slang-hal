@@ -4,21 +4,92 @@ use bytemuck::{AnyBitPattern, NoUninit};
 use encase::internal::{CreateFrom, WriteInto};
 use encase::private::ReadFrom;
 use encase::{ShaderSize, ShaderType};
-use minislang::shader_slang::CompileTarget;
 use std::error::Error;
 use std::ops::RangeBounds;
-use wgpu::BufferUsages;
+use std::any::Any;
 
+/// Shader compilation target for different backends.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CompileTarget {
+    /// WebGPU WGSL shader language
+    Wgsl,
+    /// Metal shading language
+    Metal,
+    /// Vulkan SPIR-V
+    Spirv,
+    /// CUDA PTX
+    Ptx,
+    /// Host-callable CPU code
+    HostHostCallable,
+}
+
+#[cfg(feature = "runtime")]
+impl From<CompileTarget> for minislang::shader_slang::CompileTarget {
+    fn from(target: CompileTarget) -> Self {
+        match target {
+            CompileTarget::Wgsl => minislang::shader_slang::CompileTarget::Wgsl,
+            CompileTarget::Metal => minislang::shader_slang::CompileTarget::Metal,
+            CompileTarget::Spirv => minislang::shader_slang::CompileTarget::Spirv,
+            CompileTarget::Ptx => minislang::shader_slang::CompileTarget::Ptx,
+            CompileTarget::HostHostCallable => minislang::shader_slang::CompileTarget::HostHostCallable,
+        }
+    }
+}
+
+#[cfg(feature = "webgpu")]
+pub use webgpu::WebGpu;
 #[cfg(feature = "cuda")]
 pub use cuda::Cuda;
-pub use webgpu::WebGpu;
+#[cfg(feature = "vulkan")]
+pub use vulkan::Vulkan;
+#[cfg(feature = "metal")]
+pub use metal::Metal;
+#[cfg(feature = "cpu")]
+pub use cpu::Cpu;
 
+#[cfg(feature = "webgpu")]
+mod webgpu;
 #[cfg(feature = "cuda")]
 mod cuda;
-mod webgpu;
+#[cfg(feature = "vulkan")]
+mod vulkan;
+#[cfg(feature = "metal")]
+mod metal;
+#[cfg(feature = "cpu")]
+mod cpu;
 
-// TODO: define our own buffer usages if we want to make wgpu optional.
-pub type BufferOptions = wgpu::BufferUsages;
+bitflags::bitflags! {
+    /// Buffer usage flags that mirror wgpu::BufferUsages.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub struct BufferUsages: u32 {
+        const MAP_READ = 1 << 0;
+        const MAP_WRITE = 1 << 1;
+        const COPY_SRC = 1 << 2;
+        const COPY_DST = 1 << 3;
+        const INDEX = 1 << 4;
+        const VERTEX = 1 << 5;
+        const UNIFORM = 1 << 6;
+        const STORAGE = 1 << 7;
+        const INDIRECT = 1 << 8;
+        const QUERY_RESOLVE = 1 << 9;
+    }
+}
+
+#[cfg(feature = "webgpu")]
+impl From<BufferUsages> for wgpu::BufferUsages {
+    fn from(usage: BufferUsages) -> Self {
+        wgpu::BufferUsages::from_bits_truncate(usage.bits())
+    }
+}
+
+#[cfg(feature = "webgpu")]
+impl From<wgpu::BufferUsages> for BufferUsages {
+    fn from(usage: wgpu::BufferUsages) -> Self {
+        BufferUsages::from_bits_truncate(usage.bits())
+    }
+}
+
+pub type BufferOptions = BufferUsages;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct ShaderBinding {
@@ -33,26 +104,37 @@ pub struct ShaderBinding {
 /// # Safety
 ///
 /// The value must comply to the safety requirements of all the backends it is implemented for.
-pub unsafe trait DeviceValue: 'static + Clone + Copy + Send + Sync {}
+pub unsafe trait DeviceValue: 'static + Clone + Copy {}
 
 pub trait EncaseType: ShaderType + ShaderSize + WriteInto + CreateFrom + ReadFrom {}
 impl<T: ShaderType + ShaderSize + WriteInto + CreateFrom + ReadFrom> EncaseType for T {}
 
 // TODO: don’t do a blanket impl?
-unsafe impl<T: 'static + Clone + Copy + Send + Sync> DeviceValue for T {}
+unsafe impl<T: 'static + Clone + Copy> DeviceValue for T {}
 
-#[async_trait::async_trait]
-pub trait Backend: 'static + Sized + Send + Sync {
+#[cfg(target_arch = "wasm32")]
+pub trait MaybeSendSync {
+}
+#[cfg(target_arch = "wasm32")]
+impl<T> MaybeSendSync for T {}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub trait MaybeSendSync: Send + Sync {}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl<T: Send + Sync> MaybeSendSync for T {}
+
+pub trait Backend: 'static + Sized + MaybeSendSync {
     const NAME: &'static str;
     const TARGET: CompileTarget;
 
-    type Error: Error + Send + Sync + 'static + From<ShaderArgsError>;
-    type Buffer<T: DeviceValue>: Buffer<Self, T>;
-    type BufferSlice<'b, T: DeviceValue>: Send + Sync + for<'c> ShaderArgs<'c, Self>;
-    type Encoder: Encoder<Self> + Send + Sync;
-    type Pass: Send + Sync;
+    type Error: Error + 'static + Send + Sync + From<ShaderArgsError>;
+    type Buffer<T: DeviceValue>: MaybeSendSync + Buffer<Self, T>;
+    type BufferSlice<'b, T: DeviceValue>: for<'c> ShaderArgs<'c, Self>;
+    type Encoder: MaybeSendSync + Encoder<Self>;
+    type Pass: MaybeSendSync;
     type Module;
-    type Function: Send + Sync;
+    type Function: MaybeSendSync;
     type Dispatch<'a>: Dispatch<'a, Self>
     where
         Self: 'a;
@@ -61,7 +143,20 @@ pub trait Backend: 'static + Sized + Send + Sync {
     fn as_cuda(&self) -> Option<&crate::backend::Cuda> {
         None
     }
+    #[cfg(feature = "webgpu")]
     fn as_webgpu(&self) -> Option<&WebGpu> {
+        None
+    }
+    #[cfg(feature = "vulkan")]
+    fn as_vulkan(&self) -> Option<&Vulkan> {
+        None
+    }
+    #[cfg(feature = "metal")]
+    fn as_metal(&self) -> Option<&Metal> {
+        None
+    }
+    #[cfg(feature = "cpu")]
+    fn as_cpu(&self) -> Option<&Cpu> {
         None
     }
 
@@ -129,35 +224,37 @@ pub trait Backend: 'static + Sized + Send + Sync {
         offset: u64,
         data: &[T],
     ) -> Result<(), Self::Error>;
-    async fn read_buffer<T: DeviceValue + AnyBitPattern>(
+    fn read_buffer<T: MaybeSendSync + DeviceValue + AnyBitPattern>(
         &self,
         buffer: &Self::Buffer<T>,
         data: &mut [T],
-    ) -> Result<(), Self::Error>;
-    async fn read_buffer_encased<T: DeviceValue + EncaseType>(
+    ) -> impl Future<Output = Result<(), Self::Error>> + MaybeSendSync;
+    fn read_buffer_encased<T: MaybeSendSync + DeviceValue + EncaseType>(
         &self,
         buffer: &Self::Buffer<T>,
         data: &mut [T],
-    ) -> Result<(), Self::Error>;
+    ) -> impl Future<Output = Result<(), Self::Error>> + MaybeSendSync;
     /// Slower version of `read_buffer` that doesn’t require `buffer` to be a mapped staging
     /// buffer.
     ///
     /// This is slower, but more convenient than [`Self::read_buffer`] because it takes care of
     /// creating a staging buffer, running a buffer-to-buffer copy from `buffer` to the staging
     /// buffer, and running a buffer-to-host copy from the staging buffer to `data`.
-    async fn slow_read_buffer<T: DeviceValue + AnyBitPattern>(
+    fn slow_read_buffer<T: MaybeSendSync + DeviceValue + AnyBitPattern>(
         &self,
         buffer: &Self::Buffer<T>,
         data: &mut [T],
-    ) -> Result<(), Self::Error>;
+    ) -> impl Future<Output = Result<(), Self::Error>> + MaybeSendSync;
 
-    async fn slow_read_vec<T: DeviceValue + AnyBitPattern + Default>(
+    fn slow_read_vec<T: MaybeSendSync + DeviceValue + AnyBitPattern + Default>(
         &self,
         buffer: &Self::Buffer<T>,
-    ) -> Result<Vec<T>, Self::Error> {
-        let mut result = vec![T::default(); buffer.len()];
-        self.slow_read_buffer(buffer, &mut result).await?;
-        Ok(result)
+    ) -> impl Future<Output = Result<Vec<T>, Self::Error>> + MaybeSendSync {
+        async move {
+            let mut result = vec![T::default(); buffer.len()];
+            self.slow_read_buffer(buffer, &mut result).await?;
+            Ok(result)
+        }
     }
 }
 
@@ -189,7 +286,7 @@ pub trait Dispatch<'a, B: Backend> {
     ) -> Result<(), B::Error>;
 }
 
-pub trait Buffer<B: Backend, T: DeviceValue>: Send + Sync + for<'b> ShaderArgs<'b, B> {
+pub trait Buffer<B: Backend, T: DeviceValue>: for<'b> ShaderArgs<'b, B> {
     fn is_empty(&self) -> bool;
     fn len(&self) -> usize
     where

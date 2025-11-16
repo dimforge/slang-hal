@@ -1,5 +1,17 @@
 use crate::backend::{Backend, ShaderBinding};
-use minislang::SlangCompiler;
+
+#[cfg(feature = "runtime")]
+pub use minislang::SlangCompiler;
+
+/// Dummy SlangCompiler type when runtime compilation is not available (comptime mode).
+#[cfg(not(feature = "runtime"))]
+#[derive(Default)]
+pub struct SlangCompiler;
+
+#[cfg(not(feature = "runtime"))]
+impl SlangCompiler {
+    pub fn add_dir(&mut self, dir: include_dir::Dir<'static>) {}
+}
 
 pub trait Shader<B: Backend>: Sized + 'static {
     /// Instantiates `Self` and all its compute functions from a backend.

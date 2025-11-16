@@ -1,9 +1,21 @@
 use crate::backend::{Backend, Dispatch, DispatchGrid, ShaderBinding};
 use crate::shader::ShaderArgs;
+#[cfg(feature = "runtime")]
 use minislang::{SlangCompiler, SlangProgram};
+#[cfg(feature = "comptime")]
+use std::collections::HashMap;
 
 struct ShaderArgsDesc {
     buffers: Vec<(String, ShaderBinding)>,
+}
+
+/// Precompiled shader data for compile-time compilation support.
+#[derive(Clone)]
+pub struct PrecompiledShaderData {
+    pub module_bytes: &'static [u8],
+    pub entry_point: &'static str,
+    pub block_dim: [u32; 3],
+    pub buffers: Vec<(String, ShaderBinding)>,
 }
 
 // TODO: find a better name… "GpuFunction" perhaps?
@@ -16,6 +28,7 @@ pub struct GpuFunction<B: Backend> {
 impl<B: Backend> GpuFunction<B> {
     pub const MAX_NUM_WORKGROUPS: u32 = 65535;
 
+    #[cfg(feature = "runtime")]
     pub fn from_file(
         backend: &B,
         compiler: &SlangCompiler,
@@ -29,7 +42,7 @@ impl<B: Backend> GpuFunction<B> {
             .collect();
         let program = compiler.compile(
             path,
-            B::TARGET,
+            B::TARGET.into(),
             Some(entry_point_name),
             &specializations,
             &[],
@@ -40,6 +53,7 @@ impl<B: Backend> GpuFunction<B> {
         Self::from_function(entry_point_name, &program, function)
     }
 
+    #[cfg(feature = "runtime")]
     fn from_function(
         entry_point_name: &str,
         program: &SlangProgram,
@@ -73,6 +87,27 @@ impl<B: Backend> GpuFunction<B> {
         Ok(Self {
             block_dim,
             args: ShaderArgsDesc { buffers },
+            function,
+        })
+    }
+
+    /// Creates a GpuFunction from precompiled shader data (used with the `comptime` feature).
+    ///
+    /// This function loads precompiled shader bytes that were compiled at Rust compile-time,
+    /// bypassing the need for runtime Slang compiler invocation.
+    #[cfg(feature = "comptime")]
+    pub fn from_precompiled(
+        backend: &B,
+        data: &PrecompiledShaderData,
+    ) -> Result<Self, B::Error> {
+        let module = backend.load_module_bytes(data.module_bytes)?;
+        let function = backend.load_function(&module, data.entry_point)?;
+
+        Ok(Self {
+            block_dim: data.block_dim,
+            args: ShaderArgsDesc {
+                buffers: data.buffers.clone(),
+            },
             function,
         })
     }

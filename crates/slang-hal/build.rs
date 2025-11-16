@@ -35,4 +35,27 @@ fn main() {
 
     dircpy::copy_dir(&lib_dir, &cpy_target).unwrap_or_else(|e| panic!("could not copy dynamic libraries from `{lib_dir:?}` to target directory `{cpy_target:?}`: {e}"));
     dircpy::copy_dir(&bin_dir, &cpy_target).unwrap_or_else(|e| panic!("could not copy dynamic libraries from `{bin_dir:?}` to target directory `{cpy_target:?}`: {e}"));
+
+    // Compile shaders at build time when comptime feature is enabled
+    #[cfg(feature = "comptime")]
+    compile_examples_shaders();
+}
+
+#[cfg(feature = "comptime")]
+fn compile_examples_shaders() {
+    use slang_hal_build::ShaderCompiler;
+
+    const SLANG_SRC_DIR: include_dir::Dir<'_> =
+        include_dir::include_dir!("$CARGO_MANIFEST_DIR/examples/shaders");
+
+    let out_dir = env::var("OUT_DIR").expect("Couldn't determine output directory.");
+    let mut compiler = ShaderCompiler::new(vec![], out_dir);
+    compiler.add_dir(SLANG_SRC_DIR);
+
+    // Compile all shaders from examples/shaders directory
+    // Note: slang-hal-build will automatically detect which backends to compile for
+    // based on the cargo features enabled during the build
+    compiler
+        .compile_shaders_dir("examples/shaders", &[])
+        .expect("Failed to compile shaders");
 }

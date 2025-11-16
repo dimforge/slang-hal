@@ -11,7 +11,7 @@ use minislang::shader_slang;
 use std::ffi::{CStr, FromBytesWithNulError};
 use std::ops::RangeBounds;
 use std::sync::Arc;
-use wgpu::BufferUsages;
+use super::BufferUsages;
 
 #[cfg(feature = "cublas")]
 use cudarc::cublas::safe::CudaBlas;
@@ -72,7 +72,7 @@ unsafe impl<T: DeviceValue> DeviceRepr for ForceDeviceRepr<T> {}
 #[async_trait::async_trait]
 impl Backend for Cuda {
     const NAME: &'static str = "cuda";
-    const TARGET: shader_slang::CompileTarget = shader_slang::CompileTarget::Ptx;
+    const TARGET: super::CompileTarget = super::CompileTarget::Ptx;
 
     type Error = CudaBackendError;
     type Buffer<T: DeviceValue> = CudaSlice<ForceDeviceRepr<T>>;

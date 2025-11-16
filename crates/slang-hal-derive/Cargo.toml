@@ -12,6 +12,14 @@ name = "slang_hal_derive"
 path = "src/lib.rs"
 proc-macro = true
 
+[features]
+comptime = []
+webgpu = []
+metal = []
+vulkan = []
+cuda = []
+cpu = []
+
 [dependencies]
 syn = "2.0.77"
 quote = "1.0.37"
