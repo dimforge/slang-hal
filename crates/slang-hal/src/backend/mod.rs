@@ -104,13 +104,13 @@ pub struct ShaderBinding {
 /// # Safety
 ///
 /// The value must comply to the safety requirements of all the backends it is implemented for.
-pub unsafe trait DeviceValue: 'static + Clone + Copy {}
+pub unsafe trait DeviceValue: 'static + Clone + Copy + MaybeSendSync {}
 
 pub trait EncaseType: ShaderType + ShaderSize + WriteInto + CreateFrom + ReadFrom {}
 impl<T: ShaderType + ShaderSize + WriteInto + CreateFrom + ReadFrom> EncaseType for T {}
 
 // TODO: don’t do a blanket impl?
-unsafe impl<T: 'static + Clone + Copy> DeviceValue for T {}
+unsafe impl<T: 'static + Clone + Copy + MaybeSendSync> DeviceValue for T {}
 
 #[cfg(target_arch = "wasm32")]
 pub trait MaybeSendSync {
