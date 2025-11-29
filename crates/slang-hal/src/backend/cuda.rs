@@ -1,3 +1,4 @@
+use super::BufferUsages;
 use crate::ShaderArgs;
 use crate::backend::{
     Backend, DeviceValue, Dispatch, DispatchGrid, EncaseType, Encoder, ShaderBinding,
@@ -11,7 +12,6 @@ use minislang::shader_slang;
 use std::ffi::{CStr, FromBytesWithNulError};
 use std::ops::RangeBounds;
 use std::sync::Arc;
-use super::BufferUsages;
 
 #[cfg(feature = "cublas")]
 use cudarc::cublas::safe::CudaBlas;

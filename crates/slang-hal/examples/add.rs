@@ -1,5 +1,5 @@
 use slang_hal::backend::{Backend, Encoder};
-use slang_hal::{SlangCompiler, BufferUsages};
+use slang_hal::{BufferUsages, SlangCompiler};
 
 #[cfg(feature = "cpu")]
 use slang_hal::backend::Cpu;
@@ -11,6 +11,7 @@ use slang_hal::function::GpuFunction;
 use slang_hal::{Shader, ShaderArgs, backend::Buffer};
 
 // Embed the shaders into the executable for simplicity.
+#[cfg(feature = "runtime")]
 const SLANG_SRC_DIR: include_dir::Dir<'_> =
     include_dir::include_dir!("$CARGO_MANIFEST_DIR/examples/shaders");
 
@@ -54,6 +55,7 @@ async fn main() {
     #[cfg(feature = "webgpu")]
     let backend = WebGpu::default().await.unwrap();
 
+    #[allow(unused_mut)] // mut needed with the runtime feature
     let mut compiler = SlangCompiler::default();
 
     #[cfg(feature = "runtime")]

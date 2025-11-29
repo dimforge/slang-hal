@@ -1,5 +1,8 @@
 use crate::ShaderArgs;
-use crate::backend::{Backend, BufferUsages, DeviceValue, Dispatch, DispatchGrid, EncaseType, Encoder, MaybeSendSync, ShaderBinding};
+use crate::backend::{
+    Backend, BufferUsages, DeviceValue, Dispatch, DispatchGrid, EncaseType, Encoder, MaybeSendSync,
+    ShaderBinding,
+};
 use crate::shader::ShaderArgsError;
 use async_channel::RecvError;
 use bytemuck::{AnyBitPattern, NoUninit};
@@ -13,10 +16,10 @@ use std::ops::RangeBounds;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::wgt::CommandEncoderDescriptor;
 use wgpu::{
-    Adapter, Buffer, BufferAddress, BufferDescriptor, BufferSlice, BufferUsages as WgpuBufferUsages, BufferView,
-    CommandEncoder, ComputePass, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor,
-    Device, ExperimentalFeatures, Instance, PipelineCompilationOptions, PollError, Queue,
-    ShaderModule, ShaderRuntimeChecks,
+    Adapter, Buffer, BufferAddress, BufferDescriptor, BufferSlice, BufferView, CommandEncoder,
+    ComputePass, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor, Device,
+    ExperimentalFeatures, Instance, PipelineCompilationOptions, PollError, Queue, ShaderModule,
+    ShaderRuntimeChecks,
 };
 
 /// Helper struct to initialize a device and its queue.
@@ -526,7 +529,7 @@ async fn read_bytes(device: &Device, buffer: &Buffer) -> Result<BufferView, WebG
         buffer_slice.map_async(wgpu::MapMode::Read, move |v| {
             let _ = sender.force_send(v).unwrap();
         });
-        device.poll(wgpu::PollType::wait_indefinitely());
+        device.poll(wgpu::PollType::wait_indefinitely())?;
         receiver.recv().await?.unwrap();
     }
 

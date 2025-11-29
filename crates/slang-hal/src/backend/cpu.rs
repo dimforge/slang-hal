@@ -1,3 +1,4 @@
+use super::BufferUsages;
 use crate::ShaderArgs;
 use crate::backend::{
     Backend, DeviceValue, Dispatch, DispatchGrid, EncaseType, Encoder, ShaderBinding,
@@ -6,11 +7,10 @@ use crate::shader::ShaderArgsError;
 use bytemuck::{AnyBitPattern, NoUninit};
 use encase::{ShaderType, StorageBuffer};
 use minislang::shader_slang;
+use rayon::prelude::*;
 use std::collections::HashMap;
 use std::ops::RangeBounds;
 use std::sync::{Arc, Mutex};
-use super::BufferUsages;
-use rayon::prelude::*;
 
 // Slang's ComputeVaryingInput structure for host-callable kernels
 // This matches the layout Slang expects for thread indexing
@@ -63,7 +63,6 @@ pub struct CpuBuffer<T: DeviceValue> {
 }
 
 impl<T: DeviceValue> CpuBuffer<T> {
-
     fn new_with_data(data: Vec<T>, usage: BufferUsages) -> Self {
         Self { data, usage }
     }
@@ -311,7 +310,9 @@ impl Backend for Cpu {
             result.set_len(num_ts);
         }
 
-        Ok(Arc::new(Mutex::new(CpuBuffer::new_with_data(result, usage))))
+        Ok(Arc::new(Mutex::new(CpuBuffer::new_with_data(
+            result, usage,
+        ))))
     }
 
     fn uninit_buffer<T: DeviceValue + NoUninit>(
@@ -370,11 +371,7 @@ impl Backend for Cpu {
 
         unsafe {
             let dst_ptr = buf.data.as_mut_ptr() as *mut u8;
-            std::ptr::copy_nonoverlapping(
-                bytes.as_ptr(),
-                dst_ptr.add(offset_bytes),
-                bytes.len(),
-            );
+            std::ptr::copy_nonoverlapping(bytes.as_ptr(), dst_ptr.add(offset_bytes), bytes.len());
         }
 
         Ok(())
@@ -398,9 +395,7 @@ impl Backend for Cpu {
     ) -> Result<(), Self::Error> {
         let buf = buffer.lock().unwrap();
         let size = buf.len() * std::mem::size_of::<T>();
-        let bytes = unsafe {
-            std::slice::from_raw_parts(buf.data.as_ptr() as *const u8, size)
-        };
+        let bytes = unsafe { std::slice::from_raw_parts(buf.data.as_ptr() as *const u8, size) };
 
         let encase_buffer = StorageBuffer::new(bytes);
         let mut result = vec![];
@@ -505,7 +500,7 @@ impl<'a> Dispatch<'a, Cpu> for CpuDispatch<'a> {
                 sorted_bindings
                     .iter()
                     .map(|(_, buf)| SendPtr(buf.as_ptr()))
-                    .collect()
+                    .collect(),
             );
 
             // Try multiple entry point names for Slang's various conventions
@@ -520,7 +515,11 @@ impl<'a> Dispatch<'a, Cpu> for CpuDispatch<'a> {
                 let entry_cstr = std::ffi::CString::new(variant.as_str())
                     .map_err(|e| CpuBackendError::Cpu(format!("Invalid entry point: {}", e)))?;
 
-                if let Ok(func) = self.function.library.get::<unsafe extern "C" fn()>(entry_cstr.as_bytes()) {
+                if let Ok(func) = self
+                    .function
+                    .library
+                    .get::<unsafe extern "C" fn()>(entry_cstr.as_bytes())
+                {
                     loaded_func = Some(func);
                     break;
                 }
@@ -708,7 +707,9 @@ impl<'b, T: DeviceValue> ShaderArgs<'b, Cpu> for Arc<Mutex<CpuBuffer<T>>> {
         'b: 'a,
     {
         let key = binding.space * 1000 + binding.index;
-        dispatch.bindings.insert(key, Arc::new(self.clone()) as Arc<dyn BufferPointer>);
+        dispatch
+            .bindings
+            .insert(key, Arc::new(self.clone()) as Arc<dyn BufferPointer>);
         Ok(())
     }
 }
@@ -724,7 +725,9 @@ impl<'b, T: DeviceValue> ShaderArgs<'b, Cpu> for CpuBufferSlice<T> {
         'b: 'a,
     {
         let key = binding.space * 1000 + binding.index;
-        dispatch.bindings.insert(key, Arc::new(self.buffer.clone()) as Arc<dyn BufferPointer>);
+        dispatch
+            .bindings
+            .insert(key, Arc::new(self.buffer.clone()) as Arc<dyn BufferPointer>);
         Ok(())
     }
 }

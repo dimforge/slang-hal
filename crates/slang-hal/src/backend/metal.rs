@@ -1,13 +1,15 @@
+use super::BufferUsages;
 use crate::ShaderArgs;
-use crate::backend::{Backend, DeviceValue, Dispatch, DispatchGrid, EncaseType, Encoder, MaybeSendSync, ShaderBinding};
+use crate::backend::{
+    Backend, DeviceValue, Dispatch, DispatchGrid, EncaseType, Encoder, MaybeSendSync, ShaderBinding,
+};
 use crate::shader::ShaderArgsError;
 use bytemuck::{AnyBitPattern, NoUninit};
 use encase::{ShaderType, StorageBuffer};
+use metal::*;
 use minislang::shader_slang;
 use std::ops::RangeBounds;
 use std::sync::Arc;
-use super::BufferUsages;
-use metal::*;
 
 /// Metal backend using the metal crate.
 pub struct Metal {
@@ -18,8 +20,8 @@ pub struct Metal {
 impl Metal {
     /// Creates a new Metal backend instance.
     pub fn new() -> anyhow::Result<Self> {
-        let device = Device::system_default()
-            .ok_or_else(|| anyhow::anyhow!("No Metal device found"))?;
+        let device =
+            Device::system_default().ok_or_else(|| anyhow::anyhow!("No Metal device found"))?;
         let command_queue = device.new_command_queue();
 
         Ok(Self {
@@ -185,7 +187,10 @@ impl Backend for Metal {
      */
     fn load_module_bytes(&self, bytes: &[u8]) -> Result<Self::Module, Self::Error> {
         let src = str::from_utf8(bytes).unwrap();
-        let library = self.device.new_library_with_source(src, &CompileOptions::new()).unwrap();
+        let library = self
+            .device
+            .new_library_with_source(src, &CompileOptions::new())
+            .unwrap();
         Ok(library)
     }
 
@@ -194,9 +199,9 @@ impl Backend for Metal {
         module: &Self::Module,
         entry_point: &str,
     ) -> Result<Self::Function, Self::Error> {
-        let function = module
-            .get_function(entry_point, None)
-            .map_err(|e| MetalBackendError::Metal(format!("Function '{}' not found: {}", entry_point, e)))?;
+        let function = module.get_function(entry_point, None).map_err(|e| {
+            MetalBackendError::Metal(format!("Function '{}' not found: {}", entry_point, e))
+        })?;
 
         let pipeline_state = self
             .device
@@ -297,11 +302,7 @@ impl Backend for Metal {
     ) -> Result<(), Self::Error> {
         let ptr = buffer.buffer.contents() as *mut T;
         unsafe {
-            std::ptr::copy_nonoverlapping(
-                data.as_ptr(),
-                ptr.add(offset as usize),
-                data.len(),
-            );
+            std::ptr::copy_nonoverlapping(data.as_ptr(), ptr.add(offset as usize), data.len());
         }
         Ok(())
     }
@@ -320,11 +321,7 @@ impl Backend for Metal {
 
         let ptr = buffer.buffer.contents() as *mut u8;
         unsafe {
-            std::ptr::copy_nonoverlapping(
-                bytes.as_ptr(),
-                ptr.add(offset_bytes),
-                bytes.len(),
-            );
+            std::ptr::copy_nonoverlapping(bytes.as_ptr(), ptr.add(offset_bytes), bytes.len());
         }
         Ok(())
     }
@@ -368,9 +365,7 @@ impl Backend for Metal {
         buffer: &Self::Buffer<T>,
         data: &mut [T],
     ) -> impl Future<Output = Result<(), Self::Error>> + MaybeSendSync {
-        async move {
-            self.read_buffer(buffer, data).await
-        }
+        async move { self.read_buffer(buffer, data).await }
     }
 }
 
@@ -394,13 +389,7 @@ impl Encoder<Metal> for MetalEncoder {
         let src_offset = (source_offset * std::mem::size_of::<T>()) as u64;
         let dst_offset = (target_offset * std::mem::size_of::<T>()) as u64;
 
-        blit_encoder.copy_from_buffer(
-            &source.buffer,
-            src_offset,
-            &target.buffer,
-            dst_offset,
-            size,
-        );
+        blit_encoder.copy_from_buffer(&source.buffer, src_offset, &target.buffer, dst_offset, size);
         blit_encoder.end_encoding();
 
         Ok(())
@@ -420,13 +409,7 @@ impl Encoder<Metal> for MetalEncoder {
         let src_offset = (source_offset * sz) as u64;
         let dst_offset = (target_offset * sz) as u64;
 
-        blit_encoder.copy_from_buffer(
-            &source.buffer,
-            src_offset,
-            &target.buffer,
-            dst_offset,
-            size,
-        );
+        blit_encoder.copy_from_buffer(&source.buffer, src_offset, &target.buffer, dst_offset, size);
         blit_encoder.end_encoding();
 
         Ok(())
@@ -439,7 +422,8 @@ impl<'a> Dispatch<'a, Metal> for MetalDispatch<'a> {
         grid: impl Into<DispatchGrid<'b, Metal>>,
         workgroups: [u32; 3],
     ) -> Result<(), MetalBackendError> {
-        self.encoder.set_compute_pipeline_state(&self.pipeline.pipeline_state);
+        self.encoder
+            .set_compute_pipeline_state(&self.pipeline.pipeline_state);
 
         // Bind buffers
         for (i, (_binding, buffer, _size)) in self.bindings.iter().enumerate() {
@@ -459,7 +443,8 @@ impl<'a> Dispatch<'a, Metal> for MetalDispatch<'a> {
                         height: workgroups[1] as u64,
                         depth: workgroups[2] as u64,
                     };
-                    self.encoder.dispatch_thread_groups(grid_size, threadgroup_size);
+                    self.encoder
+                        .dispatch_thread_groups(grid_size, threadgroup_size);
                 }
             }
             DispatchGrid::Indirect(grid_indirect) => {

@@ -2,8 +2,6 @@ use crate::backend::{Backend, Dispatch, DispatchGrid, ShaderBinding};
 use crate::shader::ShaderArgs;
 #[cfg(feature = "runtime")]
 use minislang::{SlangCompiler, SlangProgram};
-#[cfg(feature = "comptime")]
-use std::collections::HashMap;
 
 struct ShaderArgsDesc {
     buffers: Vec<(String, ShaderBinding)>,
@@ -96,10 +94,7 @@ impl<B: Backend> GpuFunction<B> {
     /// This function loads precompiled shader bytes that were compiled at Rust compile-time,
     /// bypassing the need for runtime Slang compiler invocation.
     #[cfg(feature = "comptime")]
-    pub fn from_precompiled(
-        backend: &B,
-        data: &PrecompiledShaderData,
-    ) -> Result<Self, B::Error> {
+    pub fn from_precompiled(backend: &B, data: &PrecompiledShaderData) -> Result<Self, B::Error> {
         let module = backend.load_module_bytes(data.module_bytes)?;
         let function = backend.load_function(&module, data.entry_point)?;
 

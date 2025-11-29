@@ -5,13 +5,16 @@ extern crate proc_macro;
 use darling::FromDeriveInput;
 use proc_macro::TokenStream;
 use quote::{ToTokens, quote};
-use syn::{Data, DataStruct, LitStr};
+use syn::{Data, DataStruct};
+use syn::LitStr;
 
 #[derive(FromDeriveInput, Clone)]
 #[darling(attributes(shader))]
 struct DeriveShadersParams {
     pub module: String,
     #[darling(default)]
+    // Allow dead-code to keep the same derive signature for both comptime and runtime.
+    #[cfg_attr(feature = "comptime", allow(dead_code))]
     pub specialize: Option<Vec<LitStr>>,
 }
 
@@ -109,10 +112,7 @@ fn generate_comptime_impl(
     let mut field_initializers = vec![];
 
     for field in fields.iter() {
-        let field_ident = field
-            .ident
-            .as_ref()
-            .expect("unnamed fields not supported");
+        let field_ident = field.ident.as_ref().expect("unnamed fields not supported");
         let entry_point = field_ident.to_string();
 
         // Generate code to load precompiled data from build script output
@@ -147,7 +147,8 @@ fn generate_comptime_impl(
                     _ => panic!("No precompiled shader data available for backend target {:?}", B::TARGET),
                 };
 
-                GpuFunction::from_precompiled(backend, &data)?
+                #[allow(unreachable_code)] // If none of the backend features are enabled this will be unreachable.
+                { GpuFunction::from_precompiled(backend, &data)? }
             }
         });
     }

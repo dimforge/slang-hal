@@ -6,7 +6,6 @@ use encase::private::ReadFrom;
 use encase::{ShaderSize, ShaderType};
 use std::error::Error;
 use std::ops::RangeBounds;
-use std::any::Any;
 
 /// Shader compilation target for different backends.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -31,32 +30,34 @@ impl From<CompileTarget> for minislang::shader_slang::CompileTarget {
             CompileTarget::Metal => minislang::shader_slang::CompileTarget::Metal,
             CompileTarget::Spirv => minislang::shader_slang::CompileTarget::Spirv,
             CompileTarget::Ptx => minislang::shader_slang::CompileTarget::Ptx,
-            CompileTarget::HostHostCallable => minislang::shader_slang::CompileTarget::HostHostCallable,
+            CompileTarget::HostHostCallable => {
+                minislang::shader_slang::CompileTarget::HostHostCallable
+            }
         }
     }
 }
 
-#[cfg(feature = "webgpu")]
-pub use webgpu::WebGpu;
-#[cfg(feature = "cuda")]
-pub use cuda::Cuda;
-#[cfg(feature = "vulkan")]
-pub use vulkan::Vulkan;
-#[cfg(feature = "metal")]
-pub use metal::Metal;
 #[cfg(feature = "cpu")]
 pub use cpu::Cpu;
-
-#[cfg(feature = "webgpu")]
-mod webgpu;
 #[cfg(feature = "cuda")]
-mod cuda;
-#[cfg(feature = "vulkan")]
-mod vulkan;
+pub use cuda::Cuda;
 #[cfg(feature = "metal")]
-mod metal;
+pub use metal::Metal;
+#[cfg(feature = "vulkan")]
+pub use vulkan::Vulkan;
+#[cfg(feature = "webgpu")]
+pub use webgpu::WebGpu;
+
 #[cfg(feature = "cpu")]
 mod cpu;
+#[cfg(feature = "cuda")]
+mod cuda;
+#[cfg(feature = "metal")]
+mod metal;
+#[cfg(feature = "vulkan")]
+mod vulkan;
+#[cfg(feature = "webgpu")]
+mod webgpu;
 
 bitflags::bitflags! {
     /// Buffer usage flags that mirror wgpu::BufferUsages.
@@ -113,8 +114,7 @@ impl<T: ShaderType + ShaderSize + WriteInto + CreateFrom + ReadFrom> EncaseType 
 unsafe impl<T: 'static + Clone + Copy + MaybeSendSync> DeviceValue for T {}
 
 #[cfg(target_arch = "wasm32")]
-pub trait MaybeSendSync {
-}
+pub trait MaybeSendSync {}
 #[cfg(target_arch = "wasm32")]
 impl<T> MaybeSendSync for T {}
 

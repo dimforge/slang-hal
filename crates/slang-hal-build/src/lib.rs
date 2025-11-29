@@ -4,8 +4,8 @@
 //! enabling the `comptime` feature of `slang-hal` which eliminates the need
 //! for runtime Slang compiler dependency.
 
-use minislang::shader_slang::CompileTarget;
 use minislang::SlangCompiler;
+use minislang::shader_slang::CompileTarget;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -115,7 +115,8 @@ impl ShaderCompiler {
             .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("slang"))
         {
             let shader_path = entry.path();
-            let relative_path = shader_path.strip_prefix(&manifest_dir)
+            let relative_path = shader_path
+                .strip_prefix(&manifest_dir)
                 .unwrap_or(shader_path)
                 .to_str()
                 .ok_or("Invalid shader path")?;
@@ -133,7 +134,12 @@ impl ShaderCompiler {
 
             // Compile each entry point
             for entry_point in entry_points {
-                self.compile_shader_entry_point(relative_path, module_path, &entry_point, specializations)?;
+                self.compile_shader_entry_point(
+                    relative_path,
+                    module_path,
+                    &entry_point,
+                    specializations,
+                )?;
                 compiled.push((relative_path.to_string(), entry_point));
             }
         }
@@ -178,22 +184,31 @@ impl ShaderCompiler {
             .to_str()
             .ok_or("Invalid module path")?;
 
-        self.compile_shader_entry_point(shader_path_str, module_path, entry_point, specializations)?;
+        self.compile_shader_entry_point(
+            shader_path_str,
+            module_path,
+            entry_point,
+            specializations,
+        )?;
         Ok(entry_point.to_string())
     }
 
     /// Finds all entry points in a shader file.
-    fn find_entry_points(&self, shader_path: &str) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    fn find_entry_points(
+        &self,
+        shader_path: &str,
+    ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
         // Compile the shader without specifying an entry point to get all entry points
         let program = self.compiler.compile(
             shader_path,
             CompileTarget::Wgsl, // Use any target just for reflection
-            None, // No specific entry point - get all
+            None,                // No specific entry point - get all
             &[],
             &[],
         );
 
-        let layout = program.layout(0)
+        let layout = program
+            .layout(0)
             .map_err(|e| format!("Failed to get shader layout: {:?}", e))?;
 
         let mut entry_points = Vec::new();
@@ -244,20 +259,30 @@ impl ShaderCompiler {
             );
 
             // Extract compiled bytes
-            let blob = program
-                .target_code(0)
-                .map_err(|e| format!("Failed to get target code for {}: {:?}", backend_info.name, e))?;
+            let blob = program.target_code(0).map_err(|e| {
+                format!(
+                    "Failed to get target code for {}: {:?}",
+                    backend_info.name, e
+                )
+            })?;
             let module_bytes = blob.as_slice();
 
             // Write to output file
-            let output_filename = format!("{}_{}.{}", entry_point, backend_info.name, backend_info.extension);
+            let output_filename = format!(
+                "{}_{}.{}",
+                entry_point, backend_info.name, backend_info.extension
+            );
             let output_path = entry_out_dir.join(&output_filename);
             fs::write(&output_path, module_bytes)?;
 
             // Extract and write reflection metadata
             let reflection = extract_reflection(&program, entry_point)?;
-            let reflection_path = entry_out_dir.join(format!("{}_{}_reflection.rs", entry_point, backend_info.name));
-            let reflection_code = generate_reflection_code(&reflection, module_path, entry_point, &output_filename);
+            let reflection_path = entry_out_dir.join(format!(
+                "{}_{}_reflection.rs",
+                entry_point, backend_info.name
+            ));
+            let reflection_code =
+                generate_reflection_code(&reflection, module_path, entry_point, &output_filename);
             fs::write(&reflection_path, reflection_code)?;
         }
 
@@ -313,7 +338,12 @@ fn extract_reflection(
 }
 
 /// Generates Rust code for reflection metadata.
-fn generate_reflection_code(reflection: &ShaderReflection, module_path: &str, entry_point: &str, backend_filename: &str) -> String {
+fn generate_reflection_code(
+    reflection: &ShaderReflection,
+    module_path: &str,
+    entry_point: &str,
+    backend_filename: &str,
+) -> String {
     let block_dim = reflection.block_dim;
     let buffers: Vec<String> = reflection
         .buffers

@@ -1,15 +1,15 @@
+use super::BufferUsages;
 use crate::ShaderArgs;
 use crate::backend::{
     Backend, DeviceValue, Dispatch, DispatchGrid, EncaseType, Encoder, ShaderBinding,
 };
 use crate::shader::ShaderArgsError;
+use ash::vk;
 use bytemuck::{AnyBitPattern, NoUninit};
 use encase::{ShaderType, StorageBuffer};
 use minislang::shader_slang;
 use std::ops::RangeBounds;
 use std::sync::Arc;
-use super::BufferUsages;
-use ash::vk;
 
 /// Vulkan backend using the ash crate.
 pub struct Vulkan {
@@ -38,8 +38,7 @@ impl Vulkan {
                 .engine_version(vk::make_api_version(0, 0, 1, 0))
                 .api_version(vk::API_VERSION_1_3);
 
-            let create_info = vk::InstanceCreateInfo::default()
-                .application_info(&app_info);
+            let create_info = vk::InstanceCreateInfo::default().application_info(&app_info);
 
             let instance = entry.create_instance(&create_info, None)?;
 
@@ -53,7 +52,8 @@ impl Vulkan {
             let memory_properties = instance.get_physical_device_memory_properties(physical_device);
 
             // Find compute queue family
-            let queue_family_properties = instance.get_physical_device_queue_family_properties(physical_device);
+            let queue_family_properties =
+                instance.get_physical_device_queue_family_properties(physical_device);
             let queue_family_index = queue_family_properties
                 .iter()
                 .enumerate()
@@ -107,7 +107,6 @@ impl Vulkan {
         }
     }
 
-
     pub fn device(&self) -> &ash::Device {
         &self.device
     }
@@ -121,7 +120,8 @@ impl Drop for Vulkan {
     fn drop(&mut self) {
         unsafe {
             self.device.device_wait_idle().unwrap();
-            self.device.destroy_descriptor_pool(self.descriptor_pool, None);
+            self.device
+                .destroy_descriptor_pool(self.descriptor_pool, None);
             self.device.destroy_command_pool(self.command_pool, None);
             self.device.destroy_device(None);
             self.instance.destroy_instance(None);
@@ -366,11 +366,13 @@ impl Backend for Vulkan {
     ) -> Result<Self::Function, Self::Error> {
         unsafe {
             // Create descriptor set layout for storage buffers
-            let bindings = vec![vk::DescriptorSetLayoutBinding::default()
-                .binding(0)
-                .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
-                .descriptor_count(1)
-                .stage_flags(vk::ShaderStageFlags::COMPUTE)];
+            let bindings = vec![
+                vk::DescriptorSetLayoutBinding::default()
+                    .binding(0)
+                    .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
+                    .descriptor_count(1)
+                    .stage_flags(vk::ShaderStageFlags::COMPUTE),
+            ];
 
             let layout_info = vk::DescriptorSetLayoutCreateInfo::default().bindings(&bindings);
 
@@ -380,7 +382,8 @@ impl Backend for Vulkan {
 
             // Create pipeline layout
             let layouts = [descriptor_set_layout];
-            let pipeline_layout_info = vk::PipelineLayoutCreateInfo::default().set_layouts(&layouts);
+            let pipeline_layout_info =
+                vk::PipelineLayoutCreateInfo::default().set_layouts(&layouts);
 
             let pipeline_layout = self
                 .device
@@ -489,7 +492,11 @@ impl Backend for Vulkan {
                 size,
                 vk::MemoryMapFlags::empty(),
             )?;
-            std::ptr::copy_nonoverlapping(data.as_ptr() as *const u8, ptr as *mut u8, size as usize);
+            std::ptr::copy_nonoverlapping(
+                data.as_ptr() as *const u8,
+                ptr as *mut u8,
+                size as usize,
+            );
             self.device.unmap_memory(staging_buffer.memory);
 
             // Copy from staging to device buffer
@@ -640,7 +647,11 @@ impl Backend for Vulkan {
                 size,
                 vk::MemoryMapFlags::empty(),
             )?;
-            std::ptr::copy_nonoverlapping(data.as_ptr() as *const u8, ptr as *mut u8, size as usize);
+            std::ptr::copy_nonoverlapping(
+                data.as_ptr() as *const u8,
+                ptr as *mut u8,
+                size as usize,
+            );
             self.device.unmap_memory(staging_buffer.memory);
 
             let command_buffer = VulkanEncoder::new(&self.device, self.command_pool)?;
@@ -759,9 +770,12 @@ impl Backend for Vulkan {
             self.device.queue_wait_idle(self.queue)?;
 
             // Map and read data
-            let ptr =
-                self.device
-                    .map_memory(staging_buffer.memory, 0, size, vk::MemoryMapFlags::empty())?;
+            let ptr = self.device.map_memory(
+                staging_buffer.memory,
+                0,
+                size,
+                vk::MemoryMapFlags::empty(),
+            )?;
             std::ptr::copy_nonoverlapping(
                 ptr as *const u8,
                 data.as_mut_ptr() as *mut u8,
@@ -807,9 +821,12 @@ impl Backend for Vulkan {
                 .queue_submit(self.queue, &submit_infos, vk::Fence::null())?;
             self.device.queue_wait_idle(self.queue)?;
 
-            let ptr =
-                self.device
-                    .map_memory(staging_buffer.memory, 0, size, vk::MemoryMapFlags::empty())?;
+            let ptr = self.device.map_memory(
+                staging_buffer.memory,
+                0,
+                size,
+                vk::MemoryMapFlags::empty(),
+            )?;
             let bytes = std::slice::from_raw_parts(ptr as *const u8, size as usize);
             let encase_buffer = StorageBuffer::new(bytes);
             let mut result = vec![];
@@ -935,7 +952,8 @@ impl<'a> Dispatch<'a, Vulkan> for VulkanDispatch<'a> {
                 write_descriptor_sets.push(write_set);
             }
 
-            self.device.update_descriptor_sets(&write_descriptor_sets, &[]);
+            self.device
+                .update_descriptor_sets(&write_descriptor_sets, &[]);
 
             // Bind pipeline and descriptor sets
             self.device.cmd_bind_pipeline(

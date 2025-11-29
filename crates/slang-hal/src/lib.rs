@@ -4,11 +4,12 @@
 
 // Warn users if they enable both comptime and runtime
 #[cfg(all(feature = "comptime", feature = "runtime"))]
-compile_error!("The 'comptime' and 'runtime' features are mutually exclusive. Use '--no-default-features --features comptime' to enable compile-time shader compilation without runtime dependencies.");
+compile_error!(
+    "The 'comptime' and 'runtime' features are mutually exclusive. Use '--no-default-features --features comptime' to enable compile-time shader compilation without runtime dependencies."
+);
 
 #[cfg(not(any(feature = "comptime", feature = "runtime")))]
 compile_error!("Exactly one of the 'comptime' or 'runtime' features must be enabled.");
-
 
 pub mod backend;
 

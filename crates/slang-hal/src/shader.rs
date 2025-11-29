@@ -10,7 +10,7 @@ pub struct SlangCompiler;
 
 #[cfg(not(feature = "runtime"))]
 impl SlangCompiler {
-    pub fn add_dir(&mut self, dir: include_dir::Dir<'static>) {}
+    pub fn add_dir(&mut self, _dir: include_dir::Dir<'static>) {}
 }
 
 pub trait Shader<B: Backend>: Sized + 'static {
