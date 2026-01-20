@@ -20,6 +20,12 @@ pub struct SlangCompiler {
     tmp: TempDir,
 }
 
+impl Default for SlangCompiler {
+    fn default() -> Self {
+        Self::new(vec![])
+    }
+}
+
 pub struct SlangProgram {
     #[allow(dead_code)]
     session: shader_slang::Session,

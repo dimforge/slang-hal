@@ -17,17 +17,17 @@ In order to compile and run any slang project, be sure to define the `SLANG_DIR`
 
 **slang-hal** exposes a unified API for interacting with the GPU in a backend-agnostic way.
 
-| Backend | Shader compilation | Compute pipelines | Render pipelines | Buffer read/write   | Non-Pod types | Indirect dispatch | GPU timestamps | Link-time specialization | 
-|---------|--------------------|-------------------|------------------|---------------------|---------------|-------------------|----------------|------------------------|
-| WebGpu  | ✅                 | ✅                 | ❌                 | ✅                   | ✅             | ✅                |  ❌              | ✅ |
-| Cuda    | ✅                 | ✅                 | ❌                 | ✅                   | ❌             | ❌                |  ❌              | ✅ |
-| Vulkan  | ❌                 | ❌                 | ❌                 | ❌                   | ❌             | ❌                |  ❌              | ❌ |
-| Metal   | ❌                 | ❌                 | ❌                 | ❌                   | ❌             | ❌                |  ❌              | ❌ |
-| DirectX | ❌                 | ❌                 | ❌                 | ❌                   | ❌              | ❌                | ❌               | ❌ |
-| CPU     | ❌                 | ❌                 | ❌                 | ❌                   | ❌              | ❌                | ❌               | ❌ |
-| PyTorch | ❌                 | ❌                 | ❌                 | ❌                   | ❌              | ❌                | ❌               | ❌ |
-| OptiX   | ❌                 | ❌                 | ❌                 | ❌                   | ❌              | ❌                | ❌               | ❌ |
-| OpenCL  | ❌                 | ❌                 | ❌                 | ❌                   | ❌              | ❌                | ❌               | ❌ |
+| Backend | Shader compilation | Compute pipelines | Render pipelines | Buffer read/write   | Non-Pod types | Indirect dispatch | GPU timestamps | Link-time specialization | Comptime | 
+|---------|--------------------|-------------------|------------------|---------------------|---------------|-------------------|----------------|------------------------|----------|
+| WebGpu  | ✅                 | ✅                 | ❌                 | ✅                   | ✅             | ✅                |  ❌              | ✅ | ✅         |
+| Cuda    | ✅                 | ✅                 | ❌                 | ✅                   | ❌             | ❌                |  ❌              | ✅ | ❌         |
+| Vulkan  | ❌                 | ❌                 | ❌                 | ❌                   | ❌             | ❌                |  ❌              | ❌ |          |
+| Metal   | ❌                 | ❌                 | ❌                 | ❌                   | ❌             | ❌                |  ❌              | ❌ |          |
+| DirectX | ❌                 | ❌                 | ❌                 | ❌                   | ❌              | ❌                | ❌               | ❌ |          |
+| CPU     | ❌                 | ❌                 | ❌                 | ❌                   | ❌              | ❌                | ❌               | ❌ |          |
+| PyTorch | ❌                 | ❌                 | ❌                 | ❌                   | ❌              | ❌                | ❌               | ❌ |          |
+| OptiX   | ❌                 | ❌                 | ❌                 | ❌                   | ❌              | ❌                | ❌               | ❌ |          |
+| OpenCL  | ❌                 | ❌                 | ❌                 | ❌                   | ❌              | ❌                | ❌               | ❌ |          |
 
 ### Other features
 

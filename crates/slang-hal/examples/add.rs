@@ -1,10 +1,17 @@
-use minislang::SlangCompiler;
-use slang_hal::backend::{Backend, Encoder, WebGpu};
+use slang_hal::backend::{Backend, Encoder};
+use slang_hal::{BufferUsages, SlangCompiler};
+
+#[cfg(feature = "cpu")]
+use slang_hal::backend::Cpu;
+#[cfg(feature = "metal")]
+use slang_hal::backend::Metal;
+#[cfg(feature = "webgpu")]
+use slang_hal::backend::WebGpu;
 use slang_hal::function::GpuFunction;
 use slang_hal::{Shader, ShaderArgs, backend::Buffer};
-use wgpu::BufferUsages;
 
 // Embed the shaders into the executable for simplicity.
+#[cfg(feature = "runtime")]
 const SLANG_SRC_DIR: include_dir::Dir<'_> =
     include_dir::include_dir!("$CARGO_MANIFEST_DIR/examples/shaders");
 
@@ -41,11 +48,17 @@ impl<B: Backend> GpuAdd<B> {
 #[async_std::main]
 async fn main() {
     // Initialize the backend and slang compiler.
-    #[cfg(feature = "cuda")]
-    let backend = Cuda::new().unwrap();
-    #[cfg(not(feature = "cuda"))]
+    #[cfg(feature = "cpu")]
+    let backend = Cpu::new().unwrap();
+    #[cfg(feature = "metal")]
+    let backend = Metal::new().unwrap();
+    #[cfg(feature = "webgpu")]
     let backend = WebGpu::default().await.unwrap();
-    let mut compiler = SlangCompiler::new(vec![]);
+
+    #[allow(unused_mut)] // mut needed with the runtime feature
+    let mut compiler = SlangCompiler::default();
+
+    #[cfg(feature = "runtime")]
     compiler.add_dir(SLANG_SRC_DIR);
 
     // Run the operation and display the result.
