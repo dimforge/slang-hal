@@ -5,8 +5,7 @@ extern crate proc_macro;
 use darling::FromDeriveInput;
 use proc_macro::TokenStream;
 use quote::{ToTokens, quote};
-use syn::{Data, DataStruct};
-use syn::LitStr;
+use syn::{Data, DataStruct, LitStr};
 
 #[derive(FromDeriveInput, Clone)]
 #[darling(attributes(shader))]

@@ -1,3 +1,5 @@
+#![allow(clippy::manual_async_fn)]
+
 use crate::ShaderArgs;
 use crate::backend::{
     Backend, BufferUsages, DeviceValue, Dispatch, DispatchGrid, EncaseType, Encoder, MaybeSendSync,
@@ -7,8 +9,6 @@ use crate::shader::ShaderArgsError;
 use async_channel::RecvError;
 use bytemuck::{AnyBitPattern, NoUninit};
 use encase::{ShaderType, StorageBuffer};
-#[cfg(feature = "runtime")]
-use minislang::shader_slang;
 use regex::Regex;
 use smallvec::SmallVec;
 use std::borrow::Cow;
@@ -362,7 +362,7 @@ impl Backend for WebGpu {
             self.submit(encoder)?;
 
             // Read the buffer.
-            Ok(self.read_buffer(&staging, out).await?)
+            self.read_buffer(&staging, out).await
         }
     }
 }

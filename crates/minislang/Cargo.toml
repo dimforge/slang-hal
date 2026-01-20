@@ -3,7 +3,7 @@ name = "minislang"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
 description = "Small wrapper around the shader-slang binding"
 repository = "https://github.com/dimforge/slang-hal"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 

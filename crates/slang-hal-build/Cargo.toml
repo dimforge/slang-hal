@@ -3,11 +3,11 @@ name = "slang-hal-build"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
 description = "Build script utilities for compile-time Slang shader compilation"
 repository = "https://github.com/dimforge/slang-hal"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-minislang = { version = "0.2", path = "../minislang" }
+minislang = { version = "0.3", path = "../minislang" }
 include_dir = "0.7"
 walkdir = "2"
