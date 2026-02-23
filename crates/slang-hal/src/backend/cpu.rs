@@ -416,7 +416,7 @@ impl Backend for Cpu {
 }
 
 impl Encoder<Cpu> for CpuEncoder {
-    fn begin_pass(&mut self) -> CpuPass {
+    fn begin_pass(&mut self, _label: &str, _timestamps: Option<&mut super::GpuTimestamps>) -> CpuPass {
         CpuPass {
             _operations: Arc::new(Mutex::new(Vec::new())),
         }

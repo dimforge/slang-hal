@@ -229,7 +229,7 @@ impl Backend for Cuda {
 }
 
 impl Encoder<Cuda> for Cuda {
-    fn begin_pass(&mut self) -> <Self as Backend>::Pass {
+    fn begin_pass(&mut self, _label: &str, _timestamps: Option<&mut super::GpuTimestamps>) -> <Self as Backend>::Pass {
         self.clone()
     }
 

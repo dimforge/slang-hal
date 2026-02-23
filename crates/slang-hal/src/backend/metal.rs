@@ -370,7 +370,7 @@ impl Backend for Metal {
 }
 
 impl Encoder<Metal> for MetalEncoder {
-    fn begin_pass(&mut self) -> MetalPass {
+    fn begin_pass(&mut self, _label: &str, _timestamps: Option<&mut super::GpuTimestamps>) -> MetalPass {
         MetalPass {
             command_buffer: self.command_buffer.to_owned(),
         }

@@ -35,3 +35,5 @@ pub mod re_exports {
 
 // Re-export our own BufferUsages type
 pub use backend::BufferUsages;
+#[cfg(feature = "webgpu")]
+pub use backend::{GpuTimestamps, GpuTimingResult};

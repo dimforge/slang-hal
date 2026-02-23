@@ -46,7 +46,9 @@ pub use metal::Metal;
 #[cfg(feature = "vulkan")]
 pub use vulkan::Vulkan;
 #[cfg(feature = "webgpu")]
-pub use webgpu::WebGpu;
+pub use webgpu::{WebGpu, GpuTimestamps, GpuTimingResult};
+#[cfg(not(feature = "webgpu"))]
+pub enum GpuTimestamps {}
 
 #[cfg(feature = "cpu")]
 mod cpu;
@@ -259,7 +261,7 @@ pub trait Backend: 'static + Sized + MaybeSendSync {
 }
 
 pub trait Encoder<B: Backend> {
-    fn begin_pass(&mut self) -> B::Pass;
+    fn begin_pass(&mut self, label: &str, timestamps: Option<&mut GpuTimestamps>) -> B::Pass;
     fn copy_buffer_to_buffer<T: DeviceValue + NoUninit>(
         &mut self,
         source: &B::Buffer<T>,

@@ -17,10 +17,12 @@ use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::wgt::CommandEncoderDescriptor;
 use wgpu::{
     Adapter, Buffer, BufferAddress, BufferDescriptor, BufferSlice, BufferView, CommandEncoder,
-    ComputePass, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor, Device,
-    ExperimentalFeatures, Instance, PipelineCompilationOptions, PollError, Queue, ShaderModule,
-    ShaderRuntimeChecks,
+    ComputePass, ComputePassDescriptor, ComputePassTimestampWrites, ComputePipeline,
+    ComputePipelineDescriptor, Device, ExperimentalFeatures, Instance,
+    PipelineCompilationOptions, PollError, QuerySet, QuerySetDescriptor, QueryType, Queue,
+    ShaderModule, ShaderRuntimeChecks,
 };
+use std::time::Duration;
 
 /// Helper struct to initialize a device and its queue.
 pub struct WebGpu {
@@ -317,7 +319,8 @@ impl Backend for WebGpu {
         async move {
             let data = read_bytes(&self.device, buffer).await?;
             let result = bytemuck::try_cast_slice(&data)?;
-            out[..result.len()].copy_from_slice(result);
+            let to_copy = result.len().min(out.len());
+            out[..to_copy].copy_from_slice(&result[..to_copy]);
             drop(data);
             buffer.unmap();
             Ok(())
@@ -336,7 +339,8 @@ impl Backend for WebGpu {
             let bytes = data.as_ref();
             let encase_buffer = StorageBuffer::new(&bytes);
             encase_buffer.read(&mut result).unwrap(); // TODO: propagate error
-            out[..result.len()].copy_from_slice(&result);
+            let to_copy = result.len().min(out.len());
+            out[..to_copy].copy_from_slice(&result[..to_copy]);
 
             drop(data);
             buffer.unmap();
@@ -368,8 +372,27 @@ impl Backend for WebGpu {
 }
 
 impl Encoder<WebGpu> for wgpu::CommandEncoder {
-    fn begin_pass(&mut self) -> ComputePass<'static> {
-        self.compute_pass("").forget_lifetime()
+    fn begin_pass(&mut self, label: &str, timestamps: Option<&mut GpuTimestamps>) -> ComputePass<'static> {
+        if let Some(ts) = timestamps {
+            let begin = ts.next_query_index;
+            let end = begin + 1;
+            ts.next_query_index += 2;
+            ts.labels.push(label.to_string());
+            let ts_writes = ComputePassTimestampWrites {
+                query_set: &ts.query_set,
+                beginning_of_pass_write_index: Some(begin),
+                end_of_pass_write_index: Some(end),
+            };
+            self.begin_compute_pass(&ComputePassDescriptor {
+                label: Some(label),
+                timestamp_writes: Some(ts_writes),
+            }).forget_lifetime()
+        } else {
+            self.begin_compute_pass(&ComputePassDescriptor {
+                label: Some(label),
+                timestamp_writes: None,
+            }).forget_lifetime()
+        }
     }
 
     fn copy_buffer_to_buffer<T: DeviceValue + NoUninit>(
@@ -485,25 +508,120 @@ impl<'a> WebGpuDispatch<'a> {
     }
 }
 
-pub trait CommandEncoderExt {
-    fn compute_pass<'encoder>(
-        &'encoder mut self,
-        label: &str,
-        // timestamps: Option<&mut GpuTimestamps>,
-    ) -> ComputePass<'encoder>;
+/// Result of a GPU timestamp query for a single compute pass.
+#[derive(Clone, Debug)]
+pub struct GpuTimingResult {
+    pub label: String,
+    pub duration: Duration,
 }
 
-impl CommandEncoderExt for CommandEncoder {
-    fn compute_pass<'encoder>(
-        &'encoder mut self,
-        label: &str,
-        // timestamps: Option<&mut GpuTimestamps>,
-    ) -> ComputePass<'encoder> {
-        let desc = ComputePassDescriptor {
-            label: Some(label),
-            timestamp_writes: None, // timestamps.and_then(|ts| ts.next_compute_pass_timestamp_writes()),
-        };
-        self.begin_compute_pass(&desc)
+/// GPU timestamp query context for profiling compute passes.
+///
+/// Create once, pass to `encoder.begin_pass(label, Some(&mut timestamps))` for each pass
+/// you want to time. After recording all passes, call `resolve` before submitting the encoder,
+/// then `read_results` after synchronization.
+pub struct GpuTimestamps {
+    query_set: QuerySet,
+    resolve_buffer: Buffer,   // QUERY_RESOLVE | COPY_SRC
+    staging_buffer: Buffer,   // MAP_READ | COPY_DST
+    labels: Vec<String>,
+    next_query_index: u32,
+    capacity: u32,
+    timestamp_period: f32,
+}
+
+impl GpuTimestamps {
+    /// Creates a new timestamp query context.
+    ///
+    /// `max_passes` is the maximum number of compute passes that can be timed
+    /// before `reset()` must be called.
+    pub fn new(device: &Device, queue: &Queue, max_passes: u32) -> Self {
+        let query_count = max_passes * 2; // begin + end per pass
+        let bytes = query_count as u64 * 8; // each timestamp is u64
+
+        let query_set = device.create_query_set(&QuerySetDescriptor {
+            label: Some("GpuTimestamps query set"),
+            count: query_count,
+            ty: QueryType::Timestamp,
+        });
+
+        let resolve_buffer = device.create_buffer(&BufferDescriptor {
+            label: Some("GpuTimestamps resolve"),
+            size: bytes,
+            usage: wgpu::BufferUsages::QUERY_RESOLVE | wgpu::BufferUsages::COPY_SRC,
+            mapped_at_creation: false,
+        });
+
+        let staging_buffer = device.create_buffer(&BufferDescriptor {
+            label: Some("GpuTimestamps staging"),
+            size: bytes,
+            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        Self {
+            query_set,
+            resolve_buffer,
+            staging_buffer,
+            labels: Vec::with_capacity(max_passes as usize),
+            next_query_index: 0,
+            capacity: max_passes,
+            timestamp_period: queue.get_timestamp_period(),
+        }
+    }
+
+    /// Number of passes recorded so far.
+    pub fn num_recorded_passes(&self) -> u32 {
+        self.next_query_index / 2
+    }
+
+    /// Resolve timestamp queries into the staging buffer.
+    /// Call this after all passes are recorded but before submitting the encoder.
+    pub fn resolve(&self, encoder: &mut CommandEncoder) {
+        if self.next_query_index == 0 {
+            return;
+        }
+        encoder.resolve_query_set(&self.query_set, 0..self.next_query_index, &self.resolve_buffer, 0);
+        encoder.copy_buffer_to_buffer(
+            &self.resolve_buffer,
+            0,
+            &self.staging_buffer,
+            0,
+            self.next_query_index as u64 * 8,
+        );
+    }
+
+    /// Read timing results from the staging buffer.
+    /// Call after `resolve`, `submit`, and `synchronize`.
+    pub async fn read_results(&self, device: &Device) -> Result<Vec<GpuTimingResult>, WebGpuBackendError> {
+        if self.next_query_index == 0 {
+            return Ok(vec![]);
+        }
+
+        let data = read_bytes(device, &self.staging_buffer).await?;
+        let timestamps: &[u64] = bytemuck::cast_slice(&data);
+        let num_passes = self.labels.len();
+        let mut results = Vec::with_capacity(num_passes);
+
+        for i in 0..num_passes {
+            let begin = timestamps[i * 2];
+            let end = timestamps[i * 2 + 1];
+            let nanos = (end.saturating_sub(begin)) as f64 * self.timestamp_period as f64;
+            results.push(GpuTimingResult {
+                label: self.labels[i].clone(),
+                duration: Duration::from_nanos(nanos as u64),
+            });
+        }
+
+        drop(data);
+        self.staging_buffer.unmap();
+        Ok(results)
+    }
+
+    /// Reset for the next frame/step.
+    pub fn reset(&mut self) {
+        self.next_query_index = 0;
+        self.labels.clear();
     }
 }
 

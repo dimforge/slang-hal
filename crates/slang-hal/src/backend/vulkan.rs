@@ -848,7 +848,7 @@ impl Backend for Vulkan {
 }
 
 impl Encoder<Vulkan> for VulkanEncoder {
-    fn begin_pass(&mut self) -> VulkanPass {
+    fn begin_pass(&mut self, _label: &str, _timestamps: Option<&mut super::GpuTimestamps>) -> VulkanPass {
         VulkanPass {
             encoder: VulkanEncoder {
                 device: self.device.clone(),
