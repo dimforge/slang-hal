@@ -3,7 +3,7 @@ name = "slang-hal-derive"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
 description = "Proc-macro for Slang shaders."
 repository = "https://github.com/dimforge/slang-hal"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 

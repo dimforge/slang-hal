@@ -3,7 +3,7 @@ name = "slang-hal"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
 description = "Abstractions for running Slang shaders with Rust."
 repository = "https://github.com/dimforge/slang-hal"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 
@@ -32,8 +32,8 @@ futures = { workspace = true }
 async-trait = "0.1"
 include_dir = "0.7"
 
-minislang = { version = "0.3", path = "../minislang", optional = true }
-slang-hal-derive = { version = "0.3", path = "../slang-hal-derive", optional = true }
+minislang = { version = "0.4", path = "../minislang", optional = true }
+slang-hal-derive = { version = "0.4", path = "../slang-hal-derive", optional = true }
 dashmap = "5"
 regex = "1"
 bitflags = "2"
@@ -66,5 +66,5 @@ slang-hal = { path = ".", features = ["derive"], default-features = false }
 
 [build-dependencies]
 dircpy = "0.3"
-slang-hal-build = { version = "0.3", path = "../slang-hal-build", optional = true }
+slang-hal-build = { version = "0.4", path = "../slang-hal-build", optional = true }
 include_dir = { version = "0.7", optional = true }
