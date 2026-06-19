@@ -84,6 +84,96 @@ impl WebGpu {
     pub fn queue(&self) -> &Queue {
         &self.queue
     }
+
+    /// Issues a `map_async(Read)` for `buffer` **without** polling the device.
+    ///
+    /// This is the building block for batched readback. The all-in-one
+    /// [`Backend::read_buffer`] / [`Backend::read_buffer_encased`] each map a single
+    /// buffer and then block on `device.poll(wait_indefinitely())`, so reading N
+    /// buffers costs N separate submit/map/poll round-trips with the GPU idle between
+    /// each. Instead, call [`WebGpu::begin_read`] on every buffer, call
+    /// [`Backend::synchronize`] **once** (a single `poll`) to drain the queue and fire
+    /// every map callback, then [`WebGpu::finish_read`] / [`WebGpu::finish_read_encased`]
+    /// each buffer. That collapses the N device stalls into one.
+    pub fn begin_read(&self, buffer: &Buffer) -> PendingRead {
+        let (sender, receiver) = async_channel::bounded(1);
+        #[cfg(not(target_arch = "wasm32"))]
+        buffer.slice(..).map_async(wgpu::MapMode::Read, move |v| {
+            let _ = sender.send_blocking(v);
+        });
+        #[cfg(target_arch = "wasm32")]
+        buffer.slice(..).map_async(wgpu::MapMode::Read, move |v| {
+            let _ = sender.force_send(v);
+        });
+        PendingRead { receiver }
+    }
+
+    /// Completes a [`WebGpu::begin_read`] for a plain-bytes (`AnyBitPattern`) buffer.
+    ///
+    /// Must be called after a single [`Backend::synchronize`] covering every pending
+    /// read. Copies the mapped contents into `out` and unmaps `buffer`. Mirrors the
+    /// decode of [`Backend::read_buffer`].
+    pub fn finish_read<T: MaybeSendSync + DeviceValue + AnyBitPattern>(
+        &self,
+        pending: PendingRead,
+        buffer: &Buffer,
+        out: &mut [T],
+    ) -> impl Future<Output = Result<(), WebGpuBackendError>> + MaybeSendSync {
+        async move {
+            pending
+                .receiver
+                .recv()
+                .await
+                .map_err(WebGpuBackendError::BufferRead)?
+                .unwrap();
+            let data = buffer.slice(..).get_mapped_range();
+            let result = bytemuck::try_cast_slice(&data)?;
+            let to_copy = result.len().min(out.len());
+            out[..to_copy].copy_from_slice(&result[..to_copy]);
+            drop(data);
+            buffer.unmap();
+            Ok(())
+        }
+    }
+
+    /// Completes a [`WebGpu::begin_read`] for an `encase`-encoded (std430) buffer.
+    ///
+    /// Must be called after a single [`Backend::synchronize`] covering every pending
+    /// read. Mirrors the decode of [`Backend::read_buffer_encased`].
+    pub fn finish_read_encased<T: MaybeSendSync + DeviceValue + EncaseType>(
+        &self,
+        pending: PendingRead,
+        buffer: &Buffer,
+        out: &mut [T],
+    ) -> impl Future<Output = Result<(), WebGpuBackendError>> + MaybeSendSync {
+        async move {
+            pending
+                .receiver
+                .recv()
+                .await
+                .map_err(WebGpuBackendError::BufferRead)?
+                .unwrap();
+            let data = buffer.slice(..).get_mapped_range();
+            let mut result = vec![];
+            let bytes = data.as_ref();
+            let encase_buffer = StorageBuffer::new(&bytes);
+            encase_buffer.read(&mut result).unwrap();
+            let to_copy = result.len().min(out.len());
+            out[..to_copy].copy_from_slice(&result[..to_copy]);
+            drop(data);
+            buffer.unmap();
+            Ok(())
+        }
+    }
+}
+
+/// A buffer whose `map_async(Read)` has been issued via [`WebGpu::begin_read`] but
+/// not yet read back. A single [`Backend::synchronize`] completes the mapping for all
+/// outstanding `PendingRead`s at once; each is then consumed by
+/// [`WebGpu::finish_read`] / [`WebGpu::finish_read_encased`].
+#[must_use = "a PendingRead must be completed with finish_read/finish_read_encased"]
+pub struct PendingRead {
+    receiver: async_channel::Receiver<Result<(), wgpu::BufferAsyncError>>,
 }
 
 #[derive(thiserror::Error, Debug)]
